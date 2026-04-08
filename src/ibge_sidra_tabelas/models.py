@@ -15,18 +15,23 @@
 # You should have received a copy of the GNU General Public License
 # along with ibge-sidra-tabelas.  If not, see <https://www.gnu.org/licenses/>.
 
+import datetime as dt
+
 import sqlalchemy as sa
 from sqlalchemy import (
     BigInteger,
     Boolean,
+    CheckConstraint,
     Date,
     ForeignKey,
     Identity,
+    Integer,
+    SmallInteger,
     Text,
     UniqueConstraint,
     func,
 )
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -74,6 +79,31 @@ class Localidade(Base):
     d1c: Mapped[str] = mapped_column(Text, nullable=False)
     # D1N = UNIDADE TERRITORIAL NOME
     d1n: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+class Periodo(Base):
+    __tablename__ = "periodo"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    codigo: Mapped[str] = mapped_column(Text, nullable=False)
+    frequencia: Mapped[str] = mapped_column(Text)
+    literals: Mapped[list[str]] = mapped_column(ARRAY(Text))
+    data_inicio: Mapped[dt.date] = mapped_column(Date)
+    data_fim: Mapped[dt.date] = mapped_column(Date)
+    ano: Mapped[int] = mapped_column(Integer)
+    ano_fim: Mapped[int] = mapped_column(Integer)
+    semestre: Mapped[int] = mapped_column(
+        SmallInteger,
+        CheckConstraint("semestre IN (1, 2)"),
+    )
+    trimestre: Mapped[int] = mapped_column(
+        SmallInteger,
+        CheckConstraint("trimestre IN (1, 2, 3, 4)"),
+    )
+    mes: Mapped[int] = mapped_column(
+        SmallInteger,
+        CheckConstraint("mes IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)"),
+    )
 
 
 class Dimensao(Base):
