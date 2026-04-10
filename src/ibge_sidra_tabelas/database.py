@@ -19,9 +19,10 @@
 
 Public functions:
 - `get_engine`: create a SQLAlchemy engine from `Config`.
-- `save_agregado`: upsert SIDRA table metadata and localidades.
+- `save_agregado`: upsert SIDRA table metadata, periods, and localidades.
 - `build_localidade_lookup`: query localidade IDs by (nc, d1c) keys.
 - `build_dimensao_lookup`: query dimensao IDs by dimension key tuples.
+- `build_periodo_lookup`: query periodo IDs by (codigo, literals) keys.
 - `load_dados`: load data rows into the dados table (also upserts
   localidades and dimensions).
 - `build_ddl`: build a CREATE TABLE statement string.
@@ -91,7 +92,7 @@ def get_engine(config: Config) -> sa.engine.Engine:
 # ---------------------------------------------------------------------------
 
 def save_agregado(engine: sa.engine.Engine, agregado: Agregado):
-    """Save metadata to the database (idempotent)."""
+    """Save SIDRA table metadata, periods, and localidades to the database (idempotent)."""
     sidra_tabela = dict(
         id=str(agregado.id),
         nome=agregado.nome,
@@ -106,6 +107,44 @@ def save_agregado(engine: sa.engine.Engine, agregado: Agregado):
         )
         conn.execute(stmt)
         conn.commit()
+
+    # Save periods
+    periodos_iter = (
+        dict(
+            codigo=periodo.id,
+            literals=periodo.literals,
+            frequencia=periodo.frequencia,
+            data_inicio=periodo.data_inicio if periodo.data_inicio else None,
+            data_fim=periodo.data_fim if periodo.data_fim else None,
+            ano=periodo.ano,
+            ano_fim=periodo.ano_fim,
+            semestre=periodo.semestre,
+            trimestre=periodo.trimestre,
+            mes=periodo.mes,
+        )
+        for periodo in agregado.periodos
+    )
+    with engine.connect() as conn:
+        while True:
+            batch = list(itertools.islice(periodos_iter, _BATCH_SIZE))
+            if not batch:
+                break
+            stmt = pg_insert(models.Periodo.__table__).values(batch)
+            stmt = stmt.on_conflict_do_update(
+                constraint="uq_periodo",
+                set_={
+                    "frequencia": stmt.excluded.frequencia,
+                    "data_inicio": stmt.excluded.data_inicio,
+                    "data_fim": stmt.excluded.data_fim,
+                    "ano": stmt.excluded.ano,
+                    "ano_fim": stmt.excluded.ano_fim,
+                    "semestre": stmt.excluded.semestre,
+                    "trimestre": stmt.excluded.trimestre,
+                    "mes": stmt.excluded.mes,
+                },
+            )
+            conn.execute(stmt)
+            conn.commit()
 
     localidades_iter = (
         dict(
@@ -207,6 +246,46 @@ def build_dimensao_lookup(
         return _dimensao_lookup_query(conn, keys)
 
 
+def _periodo_lookup_query(
+    conn: sa.Connection, keys: Iterable[tuple] | None = None
+) -> dict[tuple, int]:
+    """Return a mapping of (codigo, literals) -> periodo.id using an open connection."""
+    lookup: dict[tuple, int] = {}
+    stmt = sa.select(
+        models.Periodo.id,
+        models.Periodo.codigo,
+        models.Periodo.literals,
+    )
+    if keys is not None:
+        keys = list(keys)
+        if not keys:
+            return lookup
+        # Extract unique codigos from keys for batch querying
+        codigos = list({k[0] for k in keys if k and k[0] is not None})
+        if not codigos:
+            return lookup
+        for i in range(0, len(codigos), _BATCH_SIZE):
+            chunk_stmt = stmt.where(
+                models.Periodo.codigo.in_(codigos[i : i + _BATCH_SIZE])
+            )
+            for row in conn.execute(chunk_stmt):
+                literals_tuple = tuple(row.literals) if row.literals else ()
+                lookup[(row.codigo, literals_tuple)] = row.id
+    else:
+        for row in conn.execute(stmt):
+            literals_tuple = tuple(row.literals) if row.literals else ()
+            lookup[(row.codigo, literals_tuple)] = row.id
+    return lookup
+
+
+def build_periodo_lookup(
+    engine: sa.Engine, keys: Iterable[tuple] | None = None
+) -> dict[tuple, int]:
+    """Return a mapping of (codigo, literals) -> periodo.id."""
+    with engine.connect() as conn:
+        return _periodo_lookup_query(conn, keys)
+
+
 # ---------------------------------------------------------------------------
 # ETL
 # ---------------------------------------------------------------------------
@@ -216,7 +295,7 @@ _STAGING_DDL = (
     "  sidra_tabela_id text,"
     "  localidade_id bigint,"
     "  dimensao_id bigint,"
-    "  d3c text,"
+    "  periodo_id integer,"
     "  modificacao date,"
     "  ativo boolean,"
     "  v text"
@@ -225,9 +304,9 @@ _STAGING_DDL = (
 
 _STAGING_INSERT = (
     "INSERT INTO dados"
-    " (sidra_tabela_id, localidade_id, dimensao_id, d3c, modificacao, ativo, v)"
+    " (sidra_tabela_id, localidade_id, dimensao_id, periodo_id, modificacao, ativo, v)"
     " SELECT sidra_tabela_id, localidade_id, dimensao_id,"
-    "  d3c, modificacao, ativo, v"
+    "  periodo_id, modificacao, ativo, v"
     " FROM _staging_dados"
     " ON CONFLICT DO NOTHING"
 )
@@ -236,12 +315,12 @@ _STAGING_DEACTIVATE = (
     "UPDATE dados d"
     " SET ativo = FALSE"
     " FROM ("
-    "  SELECT sidra_tabela_id, d3c, MAX(modificacao) AS max_mod"
+    "  SELECT sidra_tabela_id, periodo_id, MAX(modificacao) AS max_mod"
     "  FROM _staging_dados"
-    "  GROUP BY sidra_tabela_id, d3c"
+    "  GROUP BY sidra_tabela_id, periodo_id"
     " ) latest"
     " WHERE d.sidra_tabela_id = latest.sidra_tabela_id"
-    "  AND d.d3c = latest.d3c"
+    "  AND d.periodo_id = latest.periodo_id"
     "  AND d.modificacao < latest.max_mod"
     "  AND d.ativo = TRUE"
 )
@@ -249,7 +328,7 @@ _STAGING_DEACTIVATE = (
 _STAGING_COPY = (
     "COPY _staging_dados"
     " (sidra_tabela_id, localidade_id, dimensao_id,"
-    "  d3c, modificacao, ativo, v)"
+    "  periodo_id, modificacao, ativo, v)"
     " FROM STDIN"
 )
 
@@ -285,6 +364,7 @@ def load_dados(
         seen_dim_full: set[tuple] = set()
         dim_dicts: list[dict] = []
         seen_dim_lookup: set[tuple] = set()
+        seen_periodos: set[str] = set()
         has_data = False
 
         for data_file in table_files:
@@ -341,10 +421,21 @@ def load_dados(
                     _coerce(r.get("D8C")),
                     _coerce(r.get("D9C")),
                 ))
+
+                d3c = _coerce(r.get("D3C"))
+                if d3c:
+                    # Store just codigo for now; we'll fetch literals from DB
+                    seen_periodos.add(d3c)
             del rows
 
         if not has_data:
+            logger.info("No data rows found for table %s", sidra_tabela_id)
             continue
+
+        logger.info(
+            "Collected %d unique periodo codigos from data for table %s",
+            len(seen_periodos), sidra_tabela_id,
+        )
 
         with engine.connect() as conn:
             # Upsert localidades
@@ -371,10 +462,40 @@ def load_dados(
             loc_lookup = _localidade_lookup_query(conn, keys=seen_locs)
             dim_lookup = _dimensao_lookup_query(conn, keys=seen_dim_lookup)
 
+            # Build periodo lookup by fetching all periods with the codigos we need.
+            # Note: Periodo table has unique constraint on (codigo, literals), so a codigo
+            # can map to multiple periodos with different literals arrays. Since the data
+            # only has codigo without literals, we handle this by:
+            # - If a codigo maps to exactly one periodo, use it
+            # - If a codigo maps to multiple periodos, use the first one
+            periodo_by_codigo = {}
+            n_periodos_found = 0
+            for codigo in seen_periodos:
+                stmt = sa.select(
+                    models.Periodo.id,
+                    models.Periodo.codigo,
+                    models.Periodo.literals,
+                ).where(models.Periodo.codigo == codigo)
+                results = list(conn.execute(stmt))
+                if results:
+                    row = results[0]
+                    periodo_by_codigo[codigo] = row.id
+                    n_periodos_found += 1
+                    if len(results) > 1:
+                        logger.warning(
+                            "Found %d periodos with codigo '%s' (using id %d)",
+                            len(results), codigo, row.id,
+                        )
+            logger.info(
+                "Matched %d periodos out of %d unique codigos from data",
+                n_periodos_found, len(seen_periodos),
+            )
+
             # --- Pass 2: re-read files and stream via COPY ---
             raw_conn = conn.connection.dbapi_connection
             missing_dims = 0
             missing_locs = 0
+            missing_periodos = 0
             n_rows = 0
 
             with raw_conn.cursor() as cur:
@@ -409,11 +530,17 @@ def load_dados(
                                 missing_dims += 1
                                 continue
 
+                            d3c = _coerce(r.get("D3C"))
+                            periodo_id = periodo_by_codigo.get(d3c)
+                            if periodo_id is None:
+                                missing_periodos += 1
+                                continue
+
                             copy.write_row((
                                 sidra_tabela_id,
                                 loc_id,
                                 dim_id,
-                                str(r.get("D3C")),
+                                periodo_id,
                                 modificacao,
                                 True,
                                 str(r.get("V")),
@@ -437,6 +564,11 @@ def load_dados(
             logger.warning(
                 "Skipping %d rows with unknown localidade for table %s",
                 missing_locs, sidra_tabela_id,
+            )
+        if missing_periodos > 0:
+            logger.warning(
+                "Skipping %d rows with unknown periodo for table %s",
+                missing_periodos, sidra_tabela_id,
             )
         logger.info(
             "Loaded %d/%d rows into dados for table %s (%d deactivated)",

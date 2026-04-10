@@ -83,27 +83,36 @@ class Localidade(Base):
 
 class Periodo(Base):
     __tablename__ = "periodo"
+    __table_args__ = (
+        UniqueConstraint(
+            "codigo",
+            "literals",
+            name="uq_periodo",
+            postgresql_nulls_not_distinct=True,
+        ),
+    )
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, Identity(always=True), primary_key=True)
     codigo: Mapped[str] = mapped_column(Text, nullable=False)
-    frequencia: Mapped[str] = mapped_column(Text)
-    literals: Mapped[list[str]] = mapped_column(ARRAY(Text))
-    data_inicio: Mapped[dt.date] = mapped_column(Date)
-    data_fim: Mapped[dt.date] = mapped_column(Date)
-    ano: Mapped[int] = mapped_column(Integer)
-    ano_fim: Mapped[int] = mapped_column(Integer)
-    semestre: Mapped[int] = mapped_column(
+    frequencia: Mapped[str | None] = mapped_column(Text)
+    literals: Mapped[list[str] | None] = mapped_column(ARRAY(Text))
+    data_inicio: Mapped[dt.date | None] = mapped_column(Date)
+    data_fim: Mapped[dt.date | None] = mapped_column(Date)
+    ano: Mapped[int | None] = mapped_column(Integer)
+    ano_fim: Mapped[int | None] = mapped_column(Integer)
+    semestre: Mapped[int | None] = mapped_column(
         SmallInteger,
         CheckConstraint("semestre IN (1, 2)"),
     )
-    trimestre: Mapped[int] = mapped_column(
+    trimestre: Mapped[int | None] = mapped_column(
         SmallInteger,
         CheckConstraint("trimestre IN (1, 2, 3, 4)"),
     )
-    mes: Mapped[int] = mapped_column(
+    mes: Mapped[int | None] = mapped_column(
         SmallInteger,
         CheckConstraint("mes IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)"),
     )
+    dados = relationship("Dados", back_populates="periodo")
 
 
 class Dimensao(Base):
@@ -165,12 +174,12 @@ class Dimensao(Base):
 class Dados(Base):
     __tablename__ = "dados"
     __table_args__ = (
-        sa.Index("ix_dados_periodo", "sidra_tabela_id", "d3c"),
+        sa.Index("ix_dados_periodo", "sidra_tabela_id", "periodo_id"),
         UniqueConstraint(
             "sidra_tabela_id",
             "localidade_id",
             "dimensao_id",
-            "d3c",
+            "periodo_id",
             name="uq_dados",
         ),
     )
@@ -198,8 +207,12 @@ class Dados(Base):
         index=True,
     )
     localidade = relationship("Localidade", back_populates="dados")
-    # D3C = PERIODO ID
-    d3c: Mapped[str] = mapped_column(Text, nullable=False)
+    periodo_id: Mapped[int] = mapped_column(
+        ForeignKey("periodo.id"),
+        nullable=False,
+        index=True,
+    )
+    periodo = relationship("Periodo", back_populates="dados")
     modificacao: Mapped[Date] = mapped_column(Date, nullable=False)
     ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     # VALOR
