@@ -11,7 +11,7 @@ requires-python = ">=3.13"
 license = {text = "GNU GPLv3"}
 
 dependencies = [
-    "sidra-fetcher @ git+ssh://git@github.com/dankkom/sidra-fetcher.git@main#egg=sidra-fetcher",
+    "sidra-fetcher @ git+ssh://git@github.com/dankkom/sidra-fetcher.git@v0.4.0#egg=sidra-fetcher",
     "psycopg[binary]>=3.2.9",
     "sqlalchemy>=2.0.41",
     "orjson>=3.11.7",
