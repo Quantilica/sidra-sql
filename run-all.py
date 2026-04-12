@@ -48,6 +48,11 @@ def main():
         default=Path("pipelines"),
         help="Root directory to search for pipelines (default: pipelines)",
     )
+    parser.add_argument(
+        "--force-metadata",
+        action="store_true",
+        help="Force re-download of agregado metadata even if cached",
+    )
     args = parser.parse_args()
 
     pipelines_dir: Path = args.pipelines_dir
@@ -67,9 +72,10 @@ def main():
         print("=" * 40)
         print(f"Running: {pipeline}")
         print("=" * 40)
-        result = subprocess.run(
-            [sys.executable, "scripts/run.py", str(pipeline)],
-        )
+        cmd = [sys.executable, "scripts/run.py", str(pipeline)]
+        if args.force_metadata:
+            cmd.append("--force-metadata")
+        result = subprocess.run(cmd)
         if result.returncode != 0:
             print(f"Warning: '{pipeline}' exited with code {result.returncode}")
             failed.append(pipeline)

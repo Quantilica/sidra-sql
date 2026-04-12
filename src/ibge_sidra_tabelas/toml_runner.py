@@ -82,9 +82,10 @@ class TomlScript:
     4. Load data rows into the dados table (also upserts dimensions).
     """
 
-    def __init__(self, config: Config, toml_path: Path, max_workers: int = 4):
+    def __init__(self, config: Config, toml_path: Path, max_workers: int = 4, force_metadata: bool = False):
         self.config = config
         self.toml_path = toml_path
+        self.force_metadata = force_metadata
         self.storage = Storage.default(config)
         self.fetcher = sidra.Fetcher(
             config, max_workers=max_workers, storage=self.storage
@@ -141,7 +142,7 @@ class TomlScript:
             seen.add(sidra_tabela_id)
 
             metadata_filepath = self.storage.get_metadata_filepath(sidra_tabela_id)
-            if metadata_filepath.exists():
+            if metadata_filepath.exists() and not self.force_metadata:
                 logger.info(
                     "Reading cached metadata for table %s", sidra_tabela_id
                 )

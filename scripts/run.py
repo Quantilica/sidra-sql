@@ -67,6 +67,11 @@ def main():
         action="store_true",
         help="Only run the transform step (skips fetch.toml)",
     )
+    parser.add_argument(
+        "--force-metadata",
+        action="store_true",
+        help="Force re-download of agregado metadata (metadados, localidades, periodos) even if cached",
+    )
     args = parser.parse_args()
 
     pipeline_dir = args.pipeline_dir
@@ -78,7 +83,7 @@ def main():
     if run_fetch:
         fetch_toml = pipeline_dir / "fetch.toml"
         if fetch_toml.exists():
-            TomlScript(config, fetch_toml).run()
+            TomlScript(config, fetch_toml, force_metadata=args.force_metadata).run()
 
     if run_transform:
         transform_toml = pipeline_dir / "transform.toml"
