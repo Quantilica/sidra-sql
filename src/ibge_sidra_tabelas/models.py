@@ -119,6 +119,7 @@ class Dimensao(Base):
     __tablename__ = "dimensao"
     __table_args__ = (
         UniqueConstraint(
+            "mc",
             "d2c",
             "d4c",
             "d5c",
