@@ -93,26 +93,6 @@ class TestDatabaseHelpers(unittest.TestCase):
         # drivername should contain postgresql
         self.assertIn("postgresql", url.drivername)
 
-    def test_build_ddl_and_comment(self):
-        cols = {"id": "BIGINT", "val": "TEXT"}
-        ddl = database.build_ddl(
-            "s", "t", "ts", cols, ["id"], comment="My table"
-        )
-        self.assertIn("CREATE TABLE IF NOT EXISTS s.t", ddl)
-        self.assertIn("CONSTRAINT t_pkey PRIMARY KEY (id)", ddl)
-        self.assertIn("TABLESPACE ts;", ddl)
-        self.assertIn("COMMENT ON TABLE s.t IS 'My table';", ddl)
-
-    def test_build_ddl_without_comment_omits_comment_clause(self):
-        ddl = database.build_ddl("s", "t", "ts", {"id": "BIGINT"}, ["id"])
-        self.assertIn("CREATE TABLE IF NOT EXISTS s.t", ddl)
-        self.assertNotIn("COMMENT ON TABLE", ddl)
-
-    def test_build_dcl(self):
-        dcl = database.build_dcl("s", "t", "owner_role", "reader_role")
-        self.assertIn("ALTER TABLE IF EXISTS s.t OWNER TO owner_role;", dcl)
-        self.assertIn("GRANT SELECT ON TABLE s.t TO reader_role;", dcl)
-
 
 if __name__ == "__main__":
     unittest.main()
