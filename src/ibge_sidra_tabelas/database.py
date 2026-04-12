@@ -25,8 +25,6 @@ Public functions:
 - `build_periodo_lookup`: query periodo IDs by (codigo, literals) keys.
 - `load_dados`: load data rows into the dados table (also upserts
   localidades and dimensions).
-- `build_ddl`: build a CREATE TABLE statement string.
-- `build_dcl`: build owner/grant statements for a table.
 """
 
 import itertools
@@ -208,10 +206,11 @@ def build_localidade_lookup(
 def _dimensao_lookup_query(
     conn: sa.Connection, keys: Iterable[tuple] | None = None
 ) -> dict[tuple, int]:
-    """Return a mapping of (d2c, d4c...d9c) -> dimensao.id using an open connection."""
+    """Return a mapping of (mc, d2c, d4c...d9c) -> dimensao.id using an open connection."""
     lookup: dict[tuple, int] = {}
     stmt = sa.select(
         models.Dimensao.id,
+        models.Dimensao.mc,
         models.Dimensao.d2c,
         models.Dimensao.d4c,
         models.Dimensao.d5c,
@@ -221,8 +220,9 @@ def _dimensao_lookup_query(
         models.Dimensao.d9c,
     )
     if keys is not None:
+        # key format: (mc, d2c, d4c, d5c, d6c, d7c, d8c, d9c) — d2c is at index 1
         d2c_keys = list(
-            {k[0] for k in keys if k is not None and k[0] is not None}
+            {k[1] for k in keys if k is not None and k[1] is not None}
         )
         if not d2c_keys:
             return lookup
@@ -231,17 +231,17 @@ def _dimensao_lookup_query(
                 models.Dimensao.d2c.in_(d2c_keys[i : i + _BATCH_SIZE])
             )
             for row in conn.execute(chunk_stmt):
-                lookup[(row.d2c, row.d4c, row.d5c, row.d6c, row.d7c, row.d8c, row.d9c)] = row.id
+                lookup[(row.mc, row.d2c, row.d4c, row.d5c, row.d6c, row.d7c, row.d8c, row.d9c)] = row.id
     else:
         for row in conn.execute(stmt):
-            lookup[(row.d2c, row.d4c, row.d5c, row.d6c, row.d7c, row.d8c, row.d9c)] = row.id
+            lookup[(row.mc, row.d2c, row.d4c, row.d5c, row.d6c, row.d7c, row.d8c, row.d9c)] = row.id
     return lookup
 
 
 def build_dimensao_lookup(
     engine: sa.Engine, keys: Iterable[tuple] | None = None
 ) -> dict[tuple, int]:
-    """Return a mapping of (d2c, d4c...d9c) -> dimensao.id."""
+    """Return a mapping of (mc, d2c, d4c...d9c) -> dimensao.id."""
     with engine.connect() as conn:
         return _dimensao_lookup_query(conn, keys)
 
@@ -290,6 +290,7 @@ def build_periodo_lookup(
 # ETL
 # ---------------------------------------------------------------------------
 
+
 _STAGING_DDL = (
     "CREATE TEMP TABLE _staging_dados ("
     "  sidra_tabela_id text,"
@@ -333,6 +334,178 @@ _STAGING_COPY = (
 )
 
 
+def _loc_key(r: dict) -> tuple[str, str]:
+    """Return the (nc, d1c) lookup key for a data row."""
+    return (_normalize_nc(_clean_str(r.get("NC"))), _clean_str(r.get("D1C")))
+
+
+def _dim_key(r: dict) -> tuple:
+    """Return the (mc, d2c, d4c..d9c) lookup key for a data row."""
+    return (
+        _coerce(r.get("MC")),
+        _coerce(r.get("D2C")),
+        _coerce(r.get("D4C")),
+        _coerce(r.get("D5C")),
+        _coerce(r.get("D6C")),
+        _coerce(r.get("D7C")),
+        _coerce(r.get("D8C")),
+        _coerce(r.get("D9C")),
+    )
+
+
+def _collect_upsert_data(
+    storage: Storage, table_files: list[dict]
+) -> tuple[list[dict], list[dict], set[tuple], Iterable[tuple], set[str], bool]:
+    """Scan data files (Pass 1) and collect unique localidades, dimensions, and periodo codigos.
+
+    Returns (loc_dicts, dim_dicts, seen_locs, dim_keys, seen_periodos, has_data).
+    """
+    seen_locs: set[tuple] = set()
+    loc_dicts: list[dict] = []
+    seen_dim_full: dict[tuple, dict] = {}
+    seen_periodos: set[str] = set()
+    has_data = False
+
+    for data_file in table_files:
+        for row in storage.read_data(data_file["filepath"]):
+            if row.get("V") is None:
+                continue
+            has_data = True
+
+            lk = _loc_key(row)
+            if lk not in seen_locs:
+                seen_locs.add(lk)
+                loc_dicts.append({
+                    "nc": lk[0],
+                    "nn": str(row.get("NN", "")).strip(),
+                    "d1c": lk[1],
+                    "d1n": str(row.get("D1N", "")).strip(),
+                })
+
+            dim_full_key = _dim_key(row)
+            if dim_full_key not in seen_dim_full:
+                seen_dim_full[dim_full_key] = {
+                    "mc":  _coerce(row.get("MC")),
+                    "mn":  _coerce(row.get("MN")) or "",
+                    "d2c": _coerce(row.get("D2C")) or "",
+                    "d2n": _coerce(row.get("D2N")) or "",
+                    "d4c": _coerce(row.get("D4C")),
+                    "d4n": _coerce(row.get("D4N")),
+                    "d5c": _coerce(row.get("D5C")),
+                    "d5n": _coerce(row.get("D5N")),
+                    "d6c": _coerce(row.get("D6C")),
+                    "d6n": _coerce(row.get("D6N")),
+                    "d7c": _coerce(row.get("D7C")),
+                    "d7n": _coerce(row.get("D7N")),
+                    "d8c": _coerce(row.get("D8C")),
+                    "d8n": _coerce(row.get("D8N")),
+                    "d9c": _coerce(row.get("D9C")),
+                    "d9n": _coerce(row.get("D9N")),
+                }
+
+            d3c = _coerce(row.get("D3C"))
+            if d3c:
+                seen_periodos.add(d3c)
+
+    return loc_dicts, list(seen_dim_full.values()), seen_locs, seen_dim_full.keys(), seen_periodos, has_data
+
+
+def _upsert_localidades_and_dims(
+    conn: sa.Connection, loc_dicts: list[dict], dim_dicts: list[dict]
+):
+    """Upsert localidades and dimensoes in batches."""
+    for i in range(0, len(loc_dicts), _BATCH_SIZE):
+        stmt = pg_insert(models.Localidade.__table__).values(loc_dicts[i : i + _BATCH_SIZE])
+        conn.execute(stmt.on_conflict_do_nothing())
+    for i in range(0, len(dim_dicts), _BATCH_SIZE):
+        stmt = pg_insert(models.Dimensao.__table__).values(dim_dicts[i : i + _BATCH_SIZE])
+        conn.execute(stmt.on_conflict_do_nothing())
+    conn.commit()
+
+
+def _periodo_by_codigo_query(
+    conn: sa.Connection, codigos: set[str]
+) -> dict[str, int]:
+    """Return a mapping of codigo -> periodo.id using a single batched query.
+
+    When a codigo maps to multiple periodos (different literals arrays), the
+    first result is used and a warning is logged.
+    """
+    lookup: dict[str, int] = {}
+    codigos_list = list(codigos)
+    for i in range(0, len(codigos_list), _BATCH_SIZE):
+        stmt = sa.select(models.Periodo.id, models.Periodo.codigo).where(
+            models.Periodo.codigo.in_(codigos_list[i : i + _BATCH_SIZE])
+        )
+        for row in conn.execute(stmt):
+            if row.codigo not in lookup:
+                lookup[row.codigo] = row.id
+            else:
+                logger.warning(
+                    "Multiple periodos found for codigo '%s', using id %d",
+                    row.codigo, lookup[row.codigo],
+                )
+    return lookup
+
+
+def _stream_staging(
+    raw_conn,
+    storage: Storage,
+    table_files: list[dict],
+    sidra_tabela_id: str,
+    loc_lookup: dict[tuple, int],
+    dim_lookup: dict[tuple, int],
+    periodo_by_codigo: dict[str, int],
+) -> tuple[int, int, int, int, int, int]:
+    """Stream resolved rows into the staging table via COPY, then flush to dados.
+
+    Returns (n_rows, n_inserted, n_deactivated, missing_locs, missing_dims, missing_periodos).
+    """
+    missing_locs = missing_dims = missing_periodos = n_rows = 0
+
+    with raw_conn.cursor() as cur:
+        cur.execute(_STAGING_DDL)
+        with cur.copy(_STAGING_COPY) as copy:
+            for data_file in table_files:
+                modificacao = data_file["modificacao"]
+                for row in storage.read_data(data_file["filepath"]):
+                    if row.get("V") is None:
+                        continue
+
+                    loc_id = loc_lookup.get(_loc_key(row))
+                    if loc_id is None:
+                        missing_locs += 1
+                        continue
+
+                    dim_id = dim_lookup.get(_dim_key(row))
+                    if dim_id is None:
+                        missing_dims += 1
+                        continue
+
+                    periodo_id = periodo_by_codigo.get(_coerce(row.get("D3C")))
+                    if periodo_id is None:
+                        missing_periodos += 1
+                        continue
+
+                    copy.write_row((
+                        sidra_tabela_id,
+                        loc_id,
+                        dim_id,
+                        periodo_id,
+                        modificacao,
+                        True,
+                        str(row.get("V")),
+                    ))
+                    n_rows += 1
+
+        cur.execute(_STAGING_INSERT)
+        n_inserted = cur.rowcount
+        cur.execute(_STAGING_DEACTIVATE)
+        n_deactivated = cur.rowcount
+
+    return n_rows, n_inserted, n_deactivated, missing_locs, missing_dims, missing_periodos
+
+
 def load_dados(
     engine: sa.Engine,
     storage: Storage,
@@ -358,75 +531,9 @@ def load_dados(
         files_by_table.setdefault(sidra_tabela_id, []).append(data_file)
 
     for sidra_tabela_id, table_files in files_by_table.items():
-        # --- Pass 1: collect unique localidades, dimensions, keys ---
-        seen_locs: set[tuple] = set()
-        loc_dicts: list[dict] = []
-        seen_dim_full: set[tuple] = set()
-        dim_dicts: list[dict] = []
-        seen_dim_lookup: set[tuple] = set()
-        seen_periodos: set[str] = set()
-        has_data = False
-
-        for data_file in table_files:
-            filepath = data_file["filepath"]
-            rows = storage.read_data(filepath)
-            for r in rows:
-                if r.get("V") is None:
-                    continue
-                has_data = True
-
-                nc = _normalize_nc(_clean_str(r.get("NC")))
-                d1c = _clean_str(r.get("D1C"))
-                loc_key = (nc, d1c)
-                if loc_key not in seen_locs:
-                    seen_locs.add(loc_key)
-                    loc_dicts.append({
-                        "nc": nc,
-                        "nn": str(r.get("NN", "")).strip(),
-                        "d1c": d1c,
-                        "d1n": str(r.get("D1N", "")).strip(),
-                    })
-
-                dim_full_key = (
-                    _coerce(r.get("MC")),
-                    _coerce(r.get("D2C")),
-                    _coerce(r.get("D4C")),
-                    _coerce(r.get("D5C")),
-                    _coerce(r.get("D6C")),
-                    _coerce(r.get("D7C")),
-                    _coerce(r.get("D8C")),
-                    _coerce(r.get("D9C")),
-                )
-                if dim_full_key not in seen_dim_full:
-                    seen_dim_full.add(dim_full_key)
-                    dim_dicts.append({
-                        "mc":  _coerce(r.get("MC")),
-                        "mn":  _coerce(r.get("MN")) or "",
-                        "d2c": _coerce(r.get("D2C")) or "",
-                        "d2n": _coerce(r.get("D2N")) or "",
-                        "d4c": _coerce(r.get("D4C")), "d4n": _coerce(r.get("D4N")),
-                        "d5c": _coerce(r.get("D5C")), "d5n": _coerce(r.get("D5N")),
-                        "d6c": _coerce(r.get("D6C")), "d6n": _coerce(r.get("D6N")),
-                        "d7c": _coerce(r.get("D7C")), "d7n": _coerce(r.get("D7N")),
-                        "d8c": _coerce(r.get("D8C")), "d8n": _coerce(r.get("D8N")),
-                        "d9c": _coerce(r.get("D9C")), "d9n": _coerce(r.get("D9N")),
-                    })
-
-                seen_dim_lookup.add((
-                    _coerce(r.get("D2C")),
-                    _coerce(r.get("D4C")),
-                    _coerce(r.get("D5C")),
-                    _coerce(r.get("D6C")),
-                    _coerce(r.get("D7C")),
-                    _coerce(r.get("D8C")),
-                    _coerce(r.get("D9C")),
-                ))
-
-                d3c = _coerce(r.get("D3C"))
-                if d3c:
-                    # Store just codigo for now; we'll fetch literals from DB
-                    seen_periodos.add(d3c)
-            del rows
+        loc_dicts, dim_dicts, seen_locs, seen_dim_lookup, seen_periodos, has_data = (
+            _collect_upsert_data(storage, table_files)
+        )
 
         if not has_data:
             logger.info("No data rows found for table %s", sidra_tabela_id)
@@ -438,121 +545,27 @@ def load_dados(
         )
 
         with engine.connect() as conn:
-            # Upsert localidades
-            for i in range(0, len(loc_dicts), _BATCH_SIZE):
-                stmt = pg_insert(models.Localidade.__table__).values(
-                    loc_dicts[i : i + _BATCH_SIZE]
-                )
-                conn.execute(stmt.on_conflict_do_nothing())
-
-            # Upsert dimensions
-            for i in range(0, len(dim_dicts), _BATCH_SIZE):
-                stmt = pg_insert(models.Dimensao.__table__).values(
-                    dim_dicts[i : i + _BATCH_SIZE]
-                )
-                conn.execute(stmt.on_conflict_do_nothing())
-            conn.commit()
-
+            _upsert_localidades_and_dims(conn, loc_dicts, dim_dicts)
             logger.info(
                 "Upserted %d localidades and %d dimensions for table %s",
                 len(loc_dicts), len(dim_dicts), sidra_tabela_id,
             )
 
-            # Build lookups
             loc_lookup = _localidade_lookup_query(conn, keys=seen_locs)
             dim_lookup = _dimensao_lookup_query(conn, keys=seen_dim_lookup)
-
-            # Build periodo lookup by fetching all periods with the codigos we need.
-            # Note: Periodo table has unique constraint on (codigo, literals), so a codigo
-            # can map to multiple periodos with different literals arrays. Since the data
-            # only has codigo without literals, we handle this by:
-            # - If a codigo maps to exactly one periodo, use it
-            # - If a codigo maps to multiple periodos, use the first one
-            periodo_by_codigo = {}
-            n_periodos_found = 0
-            for codigo in seen_periodos:
-                stmt = sa.select(
-                    models.Periodo.id,
-                    models.Periodo.codigo,
-                    models.Periodo.literals,
-                ).where(models.Periodo.codigo == codigo)
-                results = list(conn.execute(stmt))
-                if results:
-                    row = results[0]
-                    periodo_by_codigo[codigo] = row.id
-                    n_periodos_found += 1
-                    if len(results) > 1:
-                        logger.warning(
-                            "Found %d periodos with codigo '%s' (using id %d)",
-                            len(results), codigo, row.id,
-                        )
+            periodo_by_codigo = _periodo_by_codigo_query(conn, seen_periodos)
             logger.info(
                 "Matched %d periodos out of %d unique codigos from data",
-                n_periodos_found, len(seen_periodos),
+                len(periodo_by_codigo), len(seen_periodos),
             )
 
-            # --- Pass 2: re-read files and stream via COPY ---
             raw_conn = conn.connection.dbapi_connection
-            missing_dims = 0
-            missing_locs = 0
-            missing_periodos = 0
-            n_rows = 0
-
-            with raw_conn.cursor() as cur:
-                cur.execute(_STAGING_DDL)
-                with cur.copy(_STAGING_COPY) as copy:
-                    for data_file in table_files:
-                        filepath = data_file["filepath"]
-                        modificacao = data_file["modificacao"]
-                        rows = storage.read_data(filepath)
-                        for r in rows:
-                            if r.get("V") is None:
-                                continue
-
-                            nc = _normalize_nc(_clean_str(r.get("NC")))
-                            d1c = _clean_str(r.get("D1C"))
-                            loc_id = loc_lookup.get((nc, d1c))
-                            if loc_id is None:
-                                missing_locs += 1
-                                continue
-
-                            dim_key = (
-                                _coerce(r.get("D2C")),
-                                _coerce(r.get("D4C")),
-                                _coerce(r.get("D5C")),
-                                _coerce(r.get("D6C")),
-                                _coerce(r.get("D7C")),
-                                _coerce(r.get("D8C")),
-                                _coerce(r.get("D9C")),
-                            )
-                            dim_id = dim_lookup.get(dim_key)
-                            if dim_id is None:
-                                missing_dims += 1
-                                continue
-
-                            d3c = _coerce(r.get("D3C"))
-                            periodo_id = periodo_by_codigo.get(d3c)
-                            if periodo_id is None:
-                                missing_periodos += 1
-                                continue
-
-                            copy.write_row((
-                                sidra_tabela_id,
-                                loc_id,
-                                dim_id,
-                                periodo_id,
-                                modificacao,
-                                True,
-                                str(r.get("V")),
-                            ))
-                            n_rows += 1
-                        del rows
-
-                cur.execute(_STAGING_INSERT)
-                n_inserted = cur.rowcount
-                cur.execute(_STAGING_DEACTIVATE)
-                n_deactivated = cur.rowcount
-
+            n_rows, n_inserted, n_deactivated, missing_locs, missing_dims, missing_periodos = (
+                _stream_staging(
+                    raw_conn, storage, table_files, sidra_tabela_id,
+                    loc_lookup, dim_lookup, periodo_by_codigo,
+                )
+            )
             conn.commit()
 
         if missing_dims > 0:
