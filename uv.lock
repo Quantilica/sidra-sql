@@ -106,7 +106,7 @@ dependencies = [
 requires-dist = [
     { name = "orjson", specifier = ">=3.11.7" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2.9" },
-    { name = "sidra-fetcher", git = "ssh://git@github.com/dankkom/sidra-fetcher.git?rev=v0.4.0" },
+    { name = "sidra-fetcher", git = "ssh://git@github.com/dankkom/sidra-fetcher.git?rev=v0.5.0" },
     { name = "sqlalchemy", specifier = ">=2.0.41" },
 ]
 
@@ -205,8 +205,8 @@ wheels = [
 
 [[package]]
 name = "sidra-fetcher"
-version = "0.4.0"
-source = { git = "ssh://git@github.com/dankkom/sidra-fetcher.git?rev=v0.4.0#fdb658e5ffe8eb8b5daaafbaa6be7db18bac9ed6" }
+version = "0.5.0"
+source = { git = "ssh://git@github.com/dankkom/sidra-fetcher.git?rev=v0.5.0#2b69be206df1d2bc61f7624e3105c3ed0580443a" }
 dependencies = [
     { name = "httpx" },
     { name = "tenacity" },
