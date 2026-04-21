@@ -1,17 +1,18 @@
 import json
 import logging
+import shutil
 import subprocess
 import tomllib
-import shutil
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 import platformdirs
 
 logger = logging.getLogger(__name__)
 
 APP_NAME = "sidra-sql"
+
 
 @dataclass
 class PipelineDef:
@@ -20,6 +21,7 @@ class PipelineDef:
     fetch: Path
     transform: Path
 
+
 @dataclass
 class PluginManifest:
     name: str
@@ -27,16 +29,21 @@ class PluginManifest:
     version: str
     pipelines: List[PipelineDef]
 
+
 class PluginRegistry:
     def __init__(self):
-        self.config_dir = Path(platformdirs.user_config_dir(APP_NAME, appauthor=False))
-        self.data_dir = Path(platformdirs.user_data_dir(APP_NAME, appauthor=False))
+        self.config_dir = Path(
+            platformdirs.user_config_dir(APP_NAME, appauthor=False)
+        )
+        self.data_dir = Path(
+            platformdirs.user_data_dir(APP_NAME, appauthor=False)
+        )
         self.plugins_dir = self.data_dir / "plugins"
         self.registry_file = self.config_dir / "registry.json"
-        
+
         self.config_dir.mkdir(parents=True, exist_ok=True)
         self.plugins_dir.mkdir(parents=True, exist_ok=True)
-        
+
         if not self.registry_file.exists():
             self._save_registry({})
 
@@ -65,6 +72,7 @@ class PluginRegistry:
             del registry[alias]
             self._save_registry(registry)
 
+
 class PluginManager:
     def __init__(self):
         self.registry = PluginRegistry()
@@ -78,7 +86,9 @@ class PluginManager:
 
         plugin_path = self.registry.get_plugin_path(alias)
         if plugin_path.exists():
-            raise ValueError(f"Plugin with alias '{alias}' is already installed.")
+            raise ValueError(
+                f"Plugin with alias '{alias}' is already installed."
+            )
 
         logger.info("Cloning %s into %s", url, plugin_path)
         subprocess.run(["git", "clone", url, str(plugin_path)], check=True)
@@ -106,22 +116,28 @@ class PluginManager:
         plugin_path = self.registry.get_plugin_path(alias)
         if plugin_path.exists():
             logger.info("Removing directory %s", plugin_path)
+
             # Use shutil on windows/linux to deal with read-only files sometimes created by git
             def handle_remove_readonly(func, path, exc):
-                import os, stat
+                import os
+                import stat
+
                 os.chmod(path, stat.S_IWRITE)
                 func(path)
+
             shutil.rmtree(plugin_path, onerror=handle_remove_readonly)
-        
+
         self.registry.remove_plugin(alias)
         logger.info("Plugin '%s' removed successfully.", alias)
 
     def read_manifest(self, alias: str) -> PluginManifest:
         plugin_path = self.registry.get_plugin_path(alias)
         manifest_path = plugin_path / "manifest.toml"
-        
+
         if not manifest_path.exists():
-            raise FileNotFoundError(f"Manifest not found for plugin '{alias}' at {manifest_path}")
+            raise FileNotFoundError(
+                f"Manifest not found for plugin '{alias}' at {manifest_path}"
+            )
 
         with open(manifest_path, "rb") as f:
             data = tomllib.load(f)
@@ -133,7 +149,7 @@ class PluginManager:
                     id=p["id"],
                     description=p.get("description", ""),
                     fetch=plugin_path / p["fetch"],
-                    transform=plugin_path / p["transform"]
+                    transform=plugin_path / p["transform"],
                 )
             )
 
@@ -141,21 +157,23 @@ class PluginManager:
             name=data.get("name", alias),
             description=data.get("description", ""),
             version=data.get("version", "unknown"),
-            pipelines=pipelines
+            pipelines=pipelines,
         )
 
     def list_pipelines(self) -> List[tuple[str, str, PipelineDef]]:
         plugins = self.registry.get_plugins()
         all_pipelines = []
-        
+
         for alias in plugins:
             try:
                 manifest = self.read_manifest(alias)
                 for p in manifest.pipelines:
                     all_pipelines.append((alias, manifest.name, p))
             except Exception as e:
-                logger.warning("Could not load manifest for plugin '%s': %s", alias, e)
-                
+                logger.warning(
+                    "Could not load manifest for plugin '%s': %s", alias, e
+                )
+
         return all_pipelines
 
     def get_pipeline(self, alias: str, pipeline_id: str) -> PipelineDef:
@@ -163,4 +181,6 @@ class PluginManager:
         for p in manifest.pipelines:
             if p.id == pipeline_id:
                 return p
-        raise ValueError(f"Pipeline '{pipeline_id}' not found in plugin '{alias}'")
+        raise ValueError(
+            f"Pipeline '{pipeline_id}' not found in plugin '{alias}'"
+        )

@@ -77,7 +77,9 @@ def main():
             cmd.append("--force-metadata")
         result = subprocess.run(cmd)
         if result.returncode != 0:
-            print(f"Warning: '{pipeline}' exited with code {result.returncode}")
+            print(
+                f"Warning: '{pipeline}' exited with code {result.returncode}"
+            )
             failed.append(pipeline)
 
     print("All pipelines finished.")

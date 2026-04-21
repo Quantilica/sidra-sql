@@ -92,7 +92,9 @@ class Periodo(Base):
         ),
     )
 
-    id: Mapped[int] = mapped_column(Integer, Identity(always=True), primary_key=True)
+    id: Mapped[int] = mapped_column(
+        Integer, Identity(always=True), primary_key=True
+    )
     codigo: Mapped[str] = mapped_column(Text, nullable=False)
     frequencia: Mapped[str | None] = mapped_column(Text)
     literals: Mapped[list[str] | None] = mapped_column(ARRAY(Text))

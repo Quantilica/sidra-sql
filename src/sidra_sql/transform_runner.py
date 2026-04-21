@@ -89,26 +89,20 @@ class TransformRunner:
         )
 
         with engine.begin() as conn:
-            conn.exec_driver_sql(
-                f'CREATE SCHEMA IF NOT EXISTS "{schema}"'
-            )
+            conn.exec_driver_sql(f'CREATE SCHEMA IF NOT EXISTS "{schema}"')
 
             if strategy == "view":
                 conn.exec_driver_sql(
                     f"CREATE OR REPLACE VIEW {qualified} AS\n{query}"
                 )
             elif strategy == "replace":
-                conn.exec_driver_sql(
-                    f"DROP TABLE IF EXISTS {qualified}"
-                )
-                conn.exec_driver_sql(
-                    f"CREATE TABLE {qualified} AS\n{query}"
-                )
+                conn.exec_driver_sql(f"DROP TABLE IF EXISTS {qualified}")
+                conn.exec_driver_sql(f"CREATE TABLE {qualified} AS\n{query}")
 
                 if primary_key:
                     pk_cols = ", ".join(f'"{c}"' for c in primary_key)
                     conn.exec_driver_sql(
-                        f'ALTER TABLE {qualified} ADD PRIMARY KEY ({pk_cols})'
+                        f"ALTER TABLE {qualified} ADD PRIMARY KEY ({pk_cols})"
                     )
 
                 for idx in indexes:

@@ -83,7 +83,9 @@ def main():
     if run_fetch:
         fetch_toml = pipeline_dir / "fetch.toml"
         if fetch_toml.exists():
-            TomlScript(config, fetch_toml, force_metadata=args.force_metadata).run()
+            TomlScript(
+                config, fetch_toml, force_metadata=args.force_metadata
+            ).run()
 
     if run_transform:
         transform_toml = pipeline_dir / "transform.toml"

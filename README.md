@@ -60,16 +60,19 @@ Este projeto resolve exatamente esse problema: um pipeline ETL completo, com con
 
 ## Arquitetura
 
-O projeto segue uma arquitetura em camadas, com responsabilidades bem delimitadas:
+O projeto segue uma arquitetura baseada em plugins. O motor core `sidra-sql` gerencia e orquestra a execução de pipelines que são distribuídos via repositórios Git independentes.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│              pipelines/**/fetch.toml                        │
-│   pib/fetch.toml  ·  ipca/fetch.toml  ·  censo/fetch.toml  │
+│              Plugins Independentes (GitHub)                 │
+│         manifest.toml + fetch.toml + transform.toml         │
 │            (declaração das tabelas a baixar)                │
 └──────────────────────────┬──────────────────────────────────┘
-                           │ lido por
+                           │ instalado e lido via CLI
 ┌──────────────────────────▼──────────────────────────────────┐
+│              sidra-sql plugin install <url>                 │
+│         sidra-sql run <plugin-alias> <pipeline-id>          │
+│                                                             │
 │                    toml_runner.py                           │
 │           TomlScript: download → metadata → load            │
 └──────┬───────────────────┬──────────────────┬───────────────┘
@@ -86,16 +89,9 @@ O projeto segue uma arquitetura em camadas, com responsabilidades bem delimitada
 └─────────────┘   └────────┬───────┘   └─────────────┘
                            │
        ┌───────────────────▼────────────────────────┐
-       │    pipelines/**/transform.toml + .sql       │
-       │          (pares TOML + SQL)                 │
-       │    transform.toml ← metadata                │
-       │    transform.sql  ← SELECT denormalizado    │
+       │             transform_runner.py            │
+       │       (executa o SQL da transformação)     │
        └───────────────────┬────────────────────────┘
-                           │ lido por
-       ┌───────────────────▼───────────────────┐
-       │       transform_runner.py              │
-       │  TransformRunner: CREATE TABLE AS ...  │
-       └───────────────────┬───────────────────┘
                            │
                ┌───────────▼───────────┐
                │  PostgreSQL           │
@@ -107,6 +103,7 @@ O projeto segue uma arquitetura em camadas, com responsabilidades bem delimitada
 
 **Princípios de design:**
 
+- **Desacoplado:** os pipelines vivem em repositórios próprios; o motor apenas clona e executa os manifestos TOML.
 - **Determinismo:** o mesmo conjunto de parâmetros sempre gera o mesmo nome de arquivo — re-execuções são seguras e baratas.
 - **Dois passos de carga:** o primeiro escaneamento coleta chaves únicas de localidades e dimensões; o segundo transmite os dados via COPY, evitando acúmulo em memória.
 - **Declarativo:** tanto a carga (scripts TOML) quanto a transformação (TOML + SQL) são definidas por arquivos de configuração.
@@ -233,45 +230,35 @@ readonly_role = readonly_role
 
 ## Uso
 
-### Executar um pipeline
+O sistema gerencia pipelines através de uma interface de linha de comando (CLI). Como as pipelines são plugins externos (repositórios git), o primeiro passo é instalar o plugin desejado.
 
-Passe o diretório do pipeline para `scripts/run.py`:
-
-```bash
-# PIB dos Municípios
-python scripts/run.py pipelines/pib_munic/pib
-
-# IPCA
-python scripts/run.py pipelines/snpc/ipca
-
-# Estimativas de população
-python scripts/run.py pipelines/populacao/estimapop
-
-# Lavouras temporárias (PAM)
-python scripts/run.py pipelines/pam/lavouras_temporarias
-```
-
-Por padrão, executa a carga (`fetch.toml`) e depois a transformação (`transform.toml`). Use as flags para controle:
+### 1. Gerenciar Plugins
 
 ```bash
-# Apenas carga (sem transformação)
-python scripts/run.py pipelines/snpc/ipca --fetch-only
+# Instalar um plugin via URL do Git
+sidra-sql plugin install https://github.com/dankkom/sidra-pipeline-pam.git --alias pam
 
-# Apenas transformação (sem carga)
-python scripts/run.py pipelines/snpc/ipca --transform-only
+# Listar os plugins instalados e suas pipelines disponíveis
+sidra-sql plugin list
+
+# Atualizar um plugin instalado
+sidra-sql plugin update pam
+
+# Remover um plugin
+sidra-sql plugin remove pam
 ```
 
-### Executar todos os pipelines
+### 2. Executar uma pipeline
+
+Use o comando `run`, especificando o "alias" do plugin e o "id" da pipeline (mostrados via `sidra-sql plugin list`):
 
 ```bash
-# Roda todos os pipelines em pipelines/ sequencialmente
-./run-all.sh
+# Baixa os dados e executa a transformação da pipeline 'lavouras_temporarias' do plugin 'pam'
+sidra-sql run pam lavouras_temporarias
 
-# Ou especifique um subdiretório
-./run-all.sh pipelines/snpc
+# Executa forçando a atualização de metadados
+sidra-sql run pam lavouras_temporarias --force-metadata
 ```
-
-`run-all.sh` percorre recursivamente o diretório informado (padrão: `pipelines/`), encontra todos os diretórios contendo `fetch.toml` ou `transform.toml`, e os passa para `scripts/run.py`. O código de saída de cada execução é registrado e o loop continua mesmo em caso de falha individual.
 
 ---
 
@@ -329,19 +316,8 @@ classifications = {81 = ["allxt"]}
 
 ### Adicionar uma nova série
 
-Crie um diretório de pipeline com um `fetch.toml` e execute com `scripts/run.py`:
-
-```toml
-# pipelines/minha_pesquisa/meu_dataset/fetch.toml
-[[tabelas]]
-sidra_tabela = "9999"
-variables    = ["allxp"]
-territories  = {6 = []}
-```
-
-```bash
-python scripts/run.py pipelines/minha_pesquisa/meu_dataset
-```
+Para aprender a criar o seu próprio repositório de pipelines compatível com este motor, veja a documentação dedicada:
+👉 **[Guia: Como Criar Pipelines (Plugins)](CREATING_PIPELINES.md)**
 
 ---
 
@@ -356,19 +332,7 @@ Cada transformação é definida por um par de arquivos dentro do diretório do 
 
 ### Executar uma transformação
 
-```bash
-python scripts/run.py pipelines/snpc/ipca --transform-only
-```
-
-### Executar todas as transformações
-
-```bash
-# Todos os pipelines (carga + transformação)
-./run-all.sh
-
-# Ou apenas um subdiretório
-./run-all.sh pipelines/snpc
-```
+A execução via CLI `sidra-sql run <plugin> <pipeline>` já orquestra de forma inteligente a extração e em seguida a transformação de acordo com o `manifest.toml` do plugin.
 
 ### Formato TOML da transformação
 
@@ -420,11 +384,7 @@ Valores não numéricos do SIDRA (`"..."`, `"-"`, `"X"`) são convertidos em `NU
 
 ### Adicionar uma nova transformação
 
-Crie `transform.toml` e `transform.sql` no diretório do pipeline e execute:
-
-```bash
-python scripts/run.py pipelines/minha_pesquisa/meu_dataset --transform-only
-```
+Para detalhes sobre como adicionar ou editar transformações dentro do seu próprio plugin, veja o **[Guia: Como Criar Pipelines](CREATING_PIPELINES.md)**.
 
 ### Transformações incluídas
 
@@ -629,43 +589,21 @@ A suíte de testes cobre:
 sidra-sql/
 ├── src/sidra_sql/
 │   ├── __init__.py
-│   ├── toml_runner.py        # TomlScript — lê TOML e orquestra o pipeline ETL
-│   ├── transform_runner.py   # TransformRunner — materializa TOML+SQL como tabela/view
+│   ├── cli.py                # Interface de Linha de Comando (Typer)
+│   ├── plugin_manager.py     # Gerenciamento de plugins, Git e manifests
+│   ├── toml_runner.py        # TomlScript — orquestra o pipeline ETL de extração
+│   ├── transform_runner.py   # TransformRunner — materializa TOML+SQL analíticos
 │   ├── config.py             # Leitura de config.ini
 │   ├── database.py           # SQLAlchemy, carga, DDL/DCL
 │   ├── models.py             # ORM models (tabelas, localidades, dimensões, dados)
 │   ├── sidra.py              # Cliente da API SIDRA com retry e cache
 │   ├── storage.py            # Filesystem: leitura, escrita, filenames
 │   └── utils.py              # Produto cartesiano de dimensões
-├── scripts/
-│   └── run.py                # CLI: python scripts/run.py <pipeline_dir>
-├── pipelines/                # Um diretório por dataset
-│   ├── pib_munic/pib/
-│   │   ├── fetch.toml        # Declaração das tabelas SIDRA a baixar
-│   │   ├── transform.toml    # Metadados da tabela analítica
-│   │   └── transform.sql     # SELECT que produz os dados denormalizados
-│   ├── populacao/
-│   │   ├── estimapop/
-│   │   ├── censo_populacao/
-│   │   └── contagem_populacao/
-│   ├── snpc/
-│   │   ├── ipca/
-│   │   ├── ipca15/
-│   │   └── inpc/
-│   ├── ppm/
-│   │   ├── rebanhos/
-│   │   ├── producao/
-│   │   └── exploracao/
-│   ├── pam/
-│   │   ├── lavouras_temporarias/
-│   │   └── lavouras_permanentes/
-│   └── pevs/
-│       ├── producao/
-│       └── area_florestal/
 ├── tests/
-├── run-all.sh                # Runner: executar todos os pipelines
 ├── config.ini                # Configurações (não versionado)
-└── pyproject.toml            # Metadados e dependências do projeto
+├── pyproject.toml            # Metadados e dependências do projeto
+├── README.md
+└── CREATING_PIPELINES.md     # Guia para criação de plugins
 ```
 
 ---

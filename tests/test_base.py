@@ -68,7 +68,9 @@ class TestTomlScript(unittest.TestCase):
         script.storage.get_metadata_filepath = mock.MagicMock(
             return_value=cached_path
         )
-        script.storage.read_metadata = mock.MagicMock(return_value=fake_agregado)
+        script.storage.read_metadata = mock.MagicMock(
+            return_value=fake_agregado
+        )
         script.fetcher.fetch_metadata = mock.MagicMock()
 
         with mock.patch("sidra_sql.database.save_agregado") as save_mock:
@@ -89,7 +91,9 @@ class TestTomlScript(unittest.TestCase):
         script.storage.get_metadata_filepath = mock.MagicMock(
             return_value=missing_path
         )
-        script.fetcher.fetch_metadata = mock.MagicMock(return_value=fake_agregado)
+        script.fetcher.fetch_metadata = mock.MagicMock(
+            return_value=fake_agregado
+        )
         script.storage.write_metadata = mock.MagicMock()
 
         with mock.patch("sidra_sql.database.save_agregado") as save_mock:
@@ -114,10 +118,13 @@ class TestTomlScript(unittest.TestCase):
         )
 
         with mock.patch("sidra_sql.database.save_agregado") as save_mock:
-            script.load_metadata(engine, [
-                {"sidra_tabela": "5"},
-                {"sidra_tabela": "5"},  # duplicate
-            ])
+            script.load_metadata(
+                engine,
+                [
+                    {"sidra_tabela": "5"},
+                    {"sidra_tabela": "5"},  # duplicate
+                ],
+            )
 
         self.assertEqual(save_mock.call_count, 1)
 

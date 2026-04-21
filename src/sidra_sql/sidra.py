@@ -84,7 +84,9 @@ class Fetcher:
         storage: Storage | None = None,
     ):
         self.sidra_client = SidraClient(timeout=600)
-        self.storage = storage if storage is not None else Storage.default(config)
+        self.storage = (
+            storage if storage is not None else Storage.default(config)
+        )
         self.max_workers = max_workers
 
     def download_table(
@@ -125,15 +127,18 @@ class Fetcher:
         if metadata_path.exists():
             metadados = self.storage.read_metadata(sidra_tabela)
         else:
-            metadados = self.sidra_client.get_agregado_metadados(int(sidra_tabela))
+            metadados = self.sidra_client.get_agregado_metadados(
+                int(sidra_tabela)
+            )
 
         if classifications is None:
-            classifications = {
-                str(c.id): [] for c in metadados.classificacoes
-            }
+            classifications = {str(c.id): [] for c in metadados.classificacoes}
 
-        periodos = getattr(metadados, "periodos", None) or \
-            self.sidra_client.get_agregado_periodos(agregado_id=int(sidra_tabela))
+        periodos = getattr(
+            metadados, "periodos", None
+        ) or self.sidra_client.get_agregado_periodos(
+            agregado_id=int(sidra_tabela)
+        )
 
         period_params: list[tuple[Parametro, str]] = []
         for periodo in periodos:
@@ -150,7 +155,12 @@ class Fetcher:
 
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             futures = [
-                (executor.submit(self._download_period, parameter, modification), modification)
+                (
+                    executor.submit(
+                        self._download_period, parameter, modification
+                    ),
+                    modification,
+                )
                 for parameter, modification in period_params
             ]
 
@@ -158,10 +168,12 @@ class Fetcher:
         errors: list[Exception] = []
         for f, modification in futures:
             try:
-                results.append({
-                    "filepath": f.result(),
-                    "modificacao": modification,
-                })
+                results.append(
+                    {
+                        "filepath": f.result(),
+                        "modificacao": modification,
+                    }
+                )
             except Exception as e:
                 logger.error("Period download failed: %s", e)
                 errors.append(e)
@@ -239,11 +251,13 @@ class Fetcher:
             except _TRANSIENT_ERRORS as e:
                 if attempt >= _MAX_RETRIES - 1:
                     raise
-                delay = _RETRY_BASE_DELAY * (2 ** attempt)
+                delay = _RETRY_BASE_DELAY * (2**attempt)
                 logger.error("%s while fetching data: %s", type(e).__name__, e)
                 logger.info(
                     "Retrying in %d s (attempt %d/%d)…",
-                    delay, attempt + 1, _MAX_RETRIES,
+                    delay,
+                    attempt + 1,
+                    _MAX_RETRIES,
                 )
                 time.sleep(delay)
 

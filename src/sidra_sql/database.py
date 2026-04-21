@@ -49,6 +49,7 @@ _BATCH_SIZE = 5000
 # Internal helpers
 # ---------------------------------------------------------------------------
 
+
 def _coerce(val) -> str | None:
     """Return str(val), or None if val is None."""
     return str(val) if val is not None else None
@@ -73,6 +74,7 @@ def _normalize_nc(nc: str) -> str:
 # Engine
 # ---------------------------------------------------------------------------
 
+
 def get_engine(config: Config) -> sa.engine.Engine:
     """Create and return a SQLAlchemy engine for the configured DB."""
     connection_string = (
@@ -88,6 +90,7 @@ def get_engine(config: Config) -> sa.engine.Engine:
 # ---------------------------------------------------------------------------
 # Metadata
 # ---------------------------------------------------------------------------
+
 
 def save_agregado(engine: sa.engine.Engine, agregado: Agregado):
     """Save SIDRA table metadata, periods, and localidades to the database (idempotent)."""
@@ -167,6 +170,7 @@ def save_agregado(engine: sa.engine.Engine, agregado: Agregado):
 # Lookups
 # ---------------------------------------------------------------------------
 
+
 def _localidade_lookup_query(
     conn: sa.Connection, keys: Iterable[tuple] | None = None
 ) -> dict[tuple, int]:
@@ -231,10 +235,32 @@ def _dimensao_lookup_query(
                 models.Dimensao.d2c.in_(d2c_keys[i : i + _BATCH_SIZE])
             )
             for row in conn.execute(chunk_stmt):
-                lookup[(row.mc, row.d2c, row.d4c, row.d5c, row.d6c, row.d7c, row.d8c, row.d9c)] = row.id
+                lookup[
+                    (
+                        row.mc,
+                        row.d2c,
+                        row.d4c,
+                        row.d5c,
+                        row.d6c,
+                        row.d7c,
+                        row.d8c,
+                        row.d9c,
+                    )
+                ] = row.id
     else:
         for row in conn.execute(stmt):
-            lookup[(row.mc, row.d2c, row.d4c, row.d5c, row.d6c, row.d7c, row.d8c, row.d9c)] = row.id
+            lookup[
+                (
+                    row.mc,
+                    row.d2c,
+                    row.d4c,
+                    row.d5c,
+                    row.d6c,
+                    row.d7c,
+                    row.d8c,
+                    row.d9c,
+                )
+            ] = row.id
     return lookup
 
 
@@ -355,7 +381,9 @@ def _dim_key(r: dict) -> tuple:
 
 def _collect_upsert_data(
     storage: Storage, table_files: list[dict]
-) -> tuple[list[dict], list[dict], set[tuple], Iterable[tuple], set[str], bool]:
+) -> tuple[
+    list[dict], list[dict], set[tuple], Iterable[tuple], set[str], bool
+]:
     """Scan data files (Pass 1) and collect unique localidades, dimensions, and periodo codigos.
 
     Returns (loc_dicts, dim_dicts, seen_locs, dim_keys, seen_periodos, has_data).
@@ -375,18 +403,20 @@ def _collect_upsert_data(
             lk = _loc_key(row)
             if lk not in seen_locs:
                 seen_locs.add(lk)
-                loc_dicts.append({
-                    "nc": lk[0],
-                    "nn": str(row.get("NN", "")).strip(),
-                    "d1c": lk[1],
-                    "d1n": str(row.get("D1N", "")).strip(),
-                })
+                loc_dicts.append(
+                    {
+                        "nc": lk[0],
+                        "nn": str(row.get("NN", "")).strip(),
+                        "d1c": lk[1],
+                        "d1n": str(row.get("D1N", "")).strip(),
+                    }
+                )
 
             dim_full_key = _dim_key(row)
             if dim_full_key not in seen_dim_full:
                 seen_dim_full[dim_full_key] = {
-                    "mc":  _coerce(row.get("MC")),
-                    "mn":  _coerce(row.get("MN")) or "",
+                    "mc": _coerce(row.get("MC")),
+                    "mn": _coerce(row.get("MN")) or "",
                     "d2c": _coerce(row.get("D2C")) or "",
                     "d2n": _coerce(row.get("D2N")) or "",
                     "d4c": _coerce(row.get("D4C")),
@@ -407,7 +437,14 @@ def _collect_upsert_data(
             if d3c:
                 seen_periodos.add(d3c)
 
-    return loc_dicts, list(seen_dim_full.values()), seen_locs, seen_dim_full.keys(), seen_periodos, has_data
+    return (
+        loc_dicts,
+        list(seen_dim_full.values()),
+        seen_locs,
+        seen_dim_full.keys(),
+        seen_periodos,
+        has_data,
+    )
 
 
 def _upsert_localidades_and_dims(
@@ -415,10 +452,14 @@ def _upsert_localidades_and_dims(
 ):
     """Upsert localidades and dimensoes in batches."""
     for i in range(0, len(loc_dicts), _BATCH_SIZE):
-        stmt = pg_insert(models.Localidade.__table__).values(loc_dicts[i : i + _BATCH_SIZE])
+        stmt = pg_insert(models.Localidade.__table__).values(
+            loc_dicts[i : i + _BATCH_SIZE]
+        )
         conn.execute(stmt.on_conflict_do_nothing())
     for i in range(0, len(dim_dicts), _BATCH_SIZE):
-        stmt = pg_insert(models.Dimensao.__table__).values(dim_dicts[i : i + _BATCH_SIZE])
+        stmt = pg_insert(models.Dimensao.__table__).values(
+            dim_dicts[i : i + _BATCH_SIZE]
+        )
         conn.execute(stmt.on_conflict_do_nothing())
     conn.commit()
 
@@ -443,7 +484,8 @@ def _periodo_by_codigo_query(
             else:
                 logger.warning(
                     "Multiple periodos found for codigo '%s', using id %d",
-                    row.codigo, lookup[row.codigo],
+                    row.codigo,
+                    lookup[row.codigo],
                 )
     return lookup
 
@@ -487,15 +529,17 @@ def _stream_staging(
                         missing_periodos += 1
                         continue
 
-                    copy.write_row((
-                        sidra_tabela_id,
-                        loc_id,
-                        dim_id,
-                        periodo_id,
-                        modificacao,
-                        True,
-                        str(row.get("V")),
-                    ))
+                    copy.write_row(
+                        (
+                            sidra_tabela_id,
+                            loc_id,
+                            dim_id,
+                            periodo_id,
+                            modificacao,
+                            True,
+                            str(row.get("V")),
+                        )
+                    )
                     n_rows += 1
 
         cur.execute(_STAGING_INSERT)
@@ -503,7 +547,14 @@ def _stream_staging(
         cur.execute(_STAGING_DEACTIVATE)
         n_deactivated = cur.rowcount
 
-    return n_rows, n_inserted, n_deactivated, missing_locs, missing_dims, missing_periodos
+    return (
+        n_rows,
+        n_inserted,
+        n_deactivated,
+        missing_locs,
+        missing_dims,
+        missing_periodos,
+    )
 
 
 def load_dados(
@@ -531,9 +582,14 @@ def load_dados(
         files_by_table.setdefault(sidra_tabela_id, []).append(data_file)
 
     for sidra_tabela_id, table_files in files_by_table.items():
-        loc_dicts, dim_dicts, seen_locs, seen_dim_lookup, seen_periodos, has_data = (
-            _collect_upsert_data(storage, table_files)
-        )
+        (
+            loc_dicts,
+            dim_dicts,
+            seen_locs,
+            seen_dim_lookup,
+            seen_periodos,
+            has_data,
+        ) = _collect_upsert_data(storage, table_files)
 
         if not has_data:
             logger.info("No data rows found for table %s", sidra_tabela_id)
@@ -541,14 +597,17 @@ def load_dados(
 
         logger.info(
             "Collected %d unique periodo codigos from data for table %s",
-            len(seen_periodos), sidra_tabela_id,
+            len(seen_periodos),
+            sidra_tabela_id,
         )
 
         with engine.connect() as conn:
             _upsert_localidades_and_dims(conn, loc_dicts, dim_dicts)
             logger.info(
                 "Upserted %d localidades and %d dimensions for table %s",
-                len(loc_dicts), len(dim_dicts), sidra_tabela_id,
+                len(loc_dicts),
+                len(dim_dicts),
+                sidra_tabela_id,
             )
 
             loc_lookup = _localidade_lookup_query(conn, keys=seen_locs)
@@ -556,34 +615,51 @@ def load_dados(
             periodo_by_codigo = _periodo_by_codigo_query(conn, seen_periodos)
             logger.info(
                 "Matched %d periodos out of %d unique codigos from data",
-                len(periodo_by_codigo), len(seen_periodos),
+                len(periodo_by_codigo),
+                len(seen_periodos),
             )
 
             raw_conn = conn.connection.dbapi_connection
-            n_rows, n_inserted, n_deactivated, missing_locs, missing_dims, missing_periodos = (
-                _stream_staging(
-                    raw_conn, storage, table_files, sidra_tabela_id,
-                    loc_lookup, dim_lookup, periodo_by_codigo,
-                )
+            (
+                n_rows,
+                n_inserted,
+                n_deactivated,
+                missing_locs,
+                missing_dims,
+                missing_periodos,
+            ) = _stream_staging(
+                raw_conn,
+                storage,
+                table_files,
+                sidra_tabela_id,
+                loc_lookup,
+                dim_lookup,
+                periodo_by_codigo,
             )
             conn.commit()
 
         if missing_dims > 0:
             logger.warning(
                 "Skipping %d rows with unknown dimensao for table %s",
-                missing_dims, sidra_tabela_id,
+                missing_dims,
+                sidra_tabela_id,
             )
         if missing_locs > 0:
             logger.warning(
                 "Skipping %d rows with unknown localidade for table %s",
-                missing_locs, sidra_tabela_id,
+                missing_locs,
+                sidra_tabela_id,
             )
         if missing_periodos > 0:
             logger.warning(
                 "Skipping %d rows with unknown periodo for table %s",
-                missing_periodos, sidra_tabela_id,
+                missing_periodos,
+                sidra_tabela_id,
             )
         logger.info(
             "Loaded %d/%d rows into dados for table %s (%d deactivated)",
-            n_inserted, n_rows, sidra_tabela_id, n_deactivated,
+            n_inserted,
+            n_rows,
+            sidra_tabela_id,
+            n_deactivated,
         )

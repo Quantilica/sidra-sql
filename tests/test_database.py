@@ -23,6 +23,7 @@ from sidra_sql import database
 # Internal helpers — no DB connection required
 # ---------------------------------------------------------------------------
 
+
 class TestCoerce(unittest.TestCase):
     def test_none_returns_none(self):
         self.assertIsNone(database._coerce(None))
