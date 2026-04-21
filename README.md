@@ -1,4 +1,4 @@
-# ibge-sidra-tabelas
+# sidra-sql
 
 **Pipeline ETL robusto para baixar, normalizar e carregar tabelas agregadas do SIDRA/IBGE em PostgreSQL.**
 
@@ -184,8 +184,8 @@ Isso garante que cada combinação de tabela × localidade × variável/classifi
 
 ```bash
 # 1. Clone o repositório
-git clone https://github.com/dankkom/ibge-sidra-tabelas.git
-cd ibge-sidra-tabelas
+git clone https://github.com/dankkom/sidra-sql.git
+cd sidra-sql
 
 # 2. Crie e ative o ambiente virtual
 python -m venv .venv
@@ -509,8 +509,8 @@ API SIDRA (IBGE)
 `TomlScript` lê o TOML, expande entradas dinâmicas e orquestra todo o pipeline:
 
 ```python
-from ibge_sidra_tabelas.toml_runner import TomlScript
-from ibge_sidra_tabelas.config import Config
+from sidra_sql.toml_runner import TomlScript
+from sidra_sql.config import Config
 from pathlib import Path
 
 script = TomlScript(Config(), Path("pipelines/pib_munic/pib/fetch.toml"))
@@ -528,8 +528,8 @@ O método `run()` executa automaticamente toda a sequência:
 `TransformRunner` lê um par TOML + SQL e materializa a query como tabela ou view:
 
 ```python
-from ibge_sidra_tabelas.transform_runner import TransformRunner
-from ibge_sidra_tabelas.config import Config
+from sidra_sql.transform_runner import TransformRunner
+from sidra_sql.config import Config
 from pathlib import Path
 
 runner = TransformRunner(Config(), Path("pipelines/snpc/ipca/transform.toml"))
@@ -541,7 +541,7 @@ runner.run()
 Lê `config.ini` e expõe credenciais do banco, diretório de dados e opções de logging.
 
 ```python
-from ibge_sidra_tabelas.config import Config
+from sidra_sql.config import Config
 config = Config("config.ini")
 print(config.database.host)    # "localhost"
 print(config.storage.data_dir) # "data"
@@ -550,7 +550,7 @@ print(config.storage.data_dir) # "data"
 ### `sidra.py` — Cliente da API SIDRA
 
 ```python
-from ibge_sidra_tabelas.sidra import Fetcher
+from sidra_sql.sidra import Fetcher
 
 with Fetcher(config=config) as fetcher:
     filepaths = fetcher.download_table(
@@ -584,7 +584,7 @@ t5938_p202301_f3_n6-all_v37.498_c0_m1717200000.json
 ### `database.py` — Operações no banco
 
 ```python
-from ibge_sidra_tabelas.database import get_engine, load_dados
+from sidra_sql.database import get_engine, load_dados
 
 engine = get_engine(config)
 load_dados(engine, storage, data_files)
@@ -595,7 +595,7 @@ A carga usa o protocolo COPY do PostgreSQL via `psycopg3`, com inserção em tab
 ### `utils.py` — Utilitários de transformação
 
 ```python
-from ibge_sidra_tabelas.utils import unnest_dimensoes
+from sidra_sql.utils import unnest_dimensoes
 
 dimensoes = list(unnest_dimensoes(variaveis, classificacoes))
 ```
@@ -626,8 +626,8 @@ A suíte de testes cobre:
 ## Estrutura do Repositório
 
 ```
-ibge-sidra-tabelas/
-├── src/ibge_sidra_tabelas/
+sidra-sql/
+├── src/sidra_sql/
 │   ├── __init__.py
 │   ├── toml_runner.py        # TomlScript — lê TOML e orquestra o pipeline ETL
 │   ├── transform_runner.py   # TransformRunner — materializa TOML+SQL como tabela/view

@@ -1,5 +1,5 @@
 [project]
-name = "ibge-sidra-tabelas"
+name = "sidra-sql"
 version = "0.1.0"
 description = "Tabelas de dados agregados do IBGE"
 readme = "README.md"

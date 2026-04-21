@@ -1,26 +1,26 @@
 # Copyright (C) 2026 Komesu, D.K. <daniel@dkko.me>
 #
-# This file is part of ibge-sidra-tabelas.
+# This file is part of sidra-sql.
 #
-# ibge-sidra-tabelas is free software: you can redistribute it and/or modify
+# sidra-sql is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# ibge-sidra-tabelas is distributed in the hope that it will be useful,
+# sidra-sql is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with ibge-sidra-tabelas.  If not, see <https://www.gnu.org/licenses/>.
+# along with sidra-sql.  If not, see <https://www.gnu.org/licenses/>.
 
 import os
 import tempfile
 import unittest
 from pathlib import Path
 
-from ibge_sidra_tabelas.config import Config, setup_logging
+from sidra_sql.config import Config, setup_logging
 
 
 class TestConfig(unittest.TestCase):

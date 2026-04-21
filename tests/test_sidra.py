@@ -1,19 +1,19 @@
 # Copyright (C) 2026 Komesu, D.K. <daniel@dkko.me>
 #
-# This file is part of ibge-sidra-tabelas.
+# This file is part of sidra-sql.
 #
-# ibge-sidra-tabelas is free software: you can redistribute it and/or modify
+# sidra-sql is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# ibge-sidra-tabelas is distributed in the hope that it will be useful,
+# sidra-sql is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with ibge-sidra-tabelas.  If not, see <https://www.gnu.org/licenses/>.
+# along with sidra-sql.  If not, see <https://www.gnu.org/licenses/>.
 
 import tempfile
 import unittest
@@ -21,7 +21,7 @@ from pathlib import Path
 
 import httpx
 
-from ibge_sidra_tabelas.sidra import Fetcher, unnest_classificacoes
+from sidra_sql.sidra import Fetcher, unnest_classificacoes
 
 
 class _DummyConfig:
@@ -92,7 +92,7 @@ class TestSidra(unittest.TestCase):
             def url(self):
                 return "http://example"
 
-        import ibge_sidra_tabelas.sidra as sidra_module
+        import sidra_sql.sidra as sidra_module
 
         sleep_calls = []
         orig_sleep = sidra_module.time.sleep
@@ -109,7 +109,7 @@ class TestSidra(unittest.TestCase):
         self.assertEqual(sleep_calls[0], sidra_module._RETRY_BASE_DELAY)
 
     def test_get_table_raises_after_max_retries(self):
-        import ibge_sidra_tabelas.sidra as sidra_module
+        import sidra_sql.sidra as sidra_module
 
         fetcher = Fetcher(_DummyConfig())
 
@@ -133,7 +133,7 @@ class TestSidra(unittest.TestCase):
 
     def test_get_table_retries_on_connect_error(self):
         """Broader error types beyond ReadTimeout are also retried."""
-        import ibge_sidra_tabelas.sidra as sidra_module
+        import sidra_sql.sidra as sidra_module
 
         fetcher = Fetcher(_DummyConfig())
         calls = {"n": 0}
