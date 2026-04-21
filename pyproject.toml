@@ -15,7 +15,12 @@ dependencies = [
     "psycopg[binary]>=3.2.9",
     "sqlalchemy>=2.0.41",
     "orjson>=3.11.7",
+    "platformdirs>=4.9.6",
+    "typer>=0.24.1",
 ]
+
+[project.scripts]
+sidra-sql = "sidra_sql.cli:main"
 
 [tool.hatch.metadata]
 allow-direct-references = true
