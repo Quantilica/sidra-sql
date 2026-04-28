@@ -17,7 +17,7 @@ Este projeto resolve exatamente esse problema: um pipeline ETL completo, com con
 - **Confiabilidade:** retry com backoff exponencial lida com instabilidades da API sem interromper o pipeline.
 - **Declarativo:** cada pesquisa é descrita em um arquivo TOML — sem código Python para adicionar novas séries.
 - **Transformações:** camada de transformação (TOML + SQL) gera tabelas planas e desnormalizadas, prontas para Power BI, Excel ou qualquer ferramenta analítica.
-- **Banco normalizado:** dados separados em quatro tabelas relacionais com constraints de unicidade e índices otimizados para consultas analíticas.
+- **Banco normalizado:** dados separados em cinco tabelas relacionais com constraints de unicidade e índices otimizados para consultas analíticas.
 
 ---
 
@@ -26,7 +26,7 @@ Este projeto resolve exatamente esse problema: um pipeline ETL completo, com con
 - [Funcionalidades](#funcionalidades)
 - [Arquitetura](#arquitetura)
 - [Esquema do Banco de Dados](#esquema-do-banco-de-dados)
-- [Séries Disponíveis](#séries-disponíveis)
+- [Pipelines de referência incluídas](#pipelines-de-referência-incluídas)
 - [Pré-requisitos](#pré-requisitos)
 - [Instalação](#instalação)
 - [Configuração](#configuração)
@@ -38,6 +38,7 @@ Este projeto resolve exatamente esse problema: um pipeline ETL completo, com con
 - [Fluxo de Dados](#fluxo-de-dados)
 - [Módulos Internos](#módulos-internos)
 - [Testes](#testes)
+- [Criando seus próprios pipelines](#criando-seus-próprios-pipelines)
 
 ---
 
@@ -112,7 +113,7 @@ O projeto segue uma arquitetura baseada em plugins. O motor core `sidra-sql` ger
 
 ## Esquema do Banco de Dados
 
-O banco é organizado em quatro tabelas no schema `ibge_sidra` (configurável):
+O banco é organizado em cinco tabelas no schema `ibge_sidra` (configurável):
 
 ```
 ┌─────────────────┐       ┌──────────────────────────────────────────┐
@@ -121,37 +122,42 @@ O banco é organizado em quatro tabelas no schema `ibge_sidra` (configurável):
 │ id (PK)         │◄──────│ sidra_tabela_id (FK)                     │
 │ nome            │       │ localidade_id (FK) ──────────────────────┼──►┌─────────────────┐
 │ periodicidade   │       │ dimensao_id (FK) ────────────────────────┼──►│   localidade    │
-│ metadados (JSON)│       │ d3c  (período, ex: "202301")             │   │─────────────────│
-│ ultima_atualizac│       │ v    (valor numérico ou NULL)            │   │ id (PK)         │
-└─────────────────┘       │ modificacao (timestamp)                  │   │ nc  (nível id)  │
+│ metadados (JSON)│       │ periodo_id (FK) ─────────────────────────┼──►│─────────────────│
+│ ultima_atualizac│       │ v    (valor como texto)                  │   │ id (PK)         │
+└─────────────────┘       │ modificacao (date)                       │   │ nc  (nível id)  │
                           │ ativo (boolean)                          │   │ nn  (nível nome)│
                           └──────────────────────────────────────────┘   │ d1c (unidade id)│
                                                                          │ d1n (unidade nom│
-                          ┌──────────────────────────────────────────┐   └─────────────────┘
-                          │              dimensao                    │
-                          │──────────────────────────────────────────│
-                          │ id (PK)                                  │
-                          │ mc,mn  (unidade de medida id/nome)       │
-                          │ d2c,d2n (variável id/nome)               │
-                          │ d4c–d9c (ids das classificações, ≤6)     │
-                          │ d4n–d9n (nomes das classificações)       │
-                          └──────────────────────────────────────────┘
+┌──────────────────────────────┐                                         └─────────────────┘
+│           periodo            │◄────(periodo_id)
+│──────────────────────────────│
+│ id (PK)                      │     ┌──────────────────────────────────────────┐
+│ codigo  (ex: "202301")       │     │              dimensao                    │
+│ ano, mes, trimestre, semestre│     │──────────────────────────────────────────│
+│ data_inicio, data_fim        │     │ id (PK)                                  │
+└──────────────────────────────┘     │ mc,mn  (unidade de medida id/nome)       │
+                                     │ d2c,d2n (variável id/nome)               │
+                                     │ d4c–d9c (ids das classificações, ≤6)     │
+                                     │ d4n–d9n (nomes das classificações)       │
+                                     └──────────────────────────────────────────┘
 ```
 
 **Constraint de unicidade na tabela `dados`:**
 ```sql
-UNIQUE (sidra_tabela_id, localidade_id, dimensao_id, d3c)
+UNIQUE (sidra_tabela_id, localidade_id, dimensao_id, periodo_id)
 ```
 
 Isso garante que cada combinação de tabela × localidade × variável/classificação × período exista apenas uma vez, tornando re-execuções completamente seguras.
 
 ---
 
-## Séries Disponíveis
+## Pipelines de referência incluídas
 
-| Pipeline | Pesquisa | Tabelas SIDRA |
+O repositório contém pipelines de referência no diretório `pipelines/`. Elas servem como exemplos e podem ser usadas diretamente ou adaptadas para criar seus próprios plugins.
+
+| Diretório | Pesquisa | Tabelas SIDRA |
 |---|---|---|
-| `pipelines/pib_munic/pib/` | **PIB dos Municípios** | 5938 |
+| `pipelines/pib_munic/` | **PIB dos Municípios** | 5938 |
 | `pipelines/populacao/estimapop/` | **Estimativas de População** | 6579 |
 | `pipelines/populacao/censo_populacao/` | **Censo Demográfico** | 200 |
 | `pipelines/populacao/contagem_populacao/` | **Contagem de População** | 305, 793 |
@@ -165,6 +171,8 @@ Isso garante que cada combinação de tabela × localidade × variável/classifi
 | `pipelines/pam/lavouras_permanentes/` | **PAM — Lavouras permanentes** | 1613 |
 | `pipelines/pevs/producao/` | **PEVS — Produção florestal** | 289, 291 |
 | `pipelines/pevs/area_florestal/` | **PEVS — Área florestal** | 5930 |
+
+Para criar suas próprias pipelines e distribuí-las como plugin, consulte o **[Guia de Criação de Pipelines](CREATING_PIPELINES.md)**.
 
 ---
 
@@ -363,17 +371,20 @@ unique  = false
 
 ### SQL da transformação
 
-O arquivo `.sql` contém um SELECT puro. Os nomes de tabela (`dados`, `dimensao`, `localidade`) são resolvidos pelo `search_path` configurado em `config.ini` — não use prefixo de schema:
+O arquivo `.sql` contém um SELECT puro. Os nomes de tabela (`dados`, `dimensao`, `localidade`, `periodo`) são resolvidos pelo `search_path` configurado em `config.ini` — não use prefixo de schema:
 
 ```sql
 SELECT
-    d.d3c                                                   AS periodo,
+    p.codigo                                                AS periodo,
+    p.ano,
+    p.mes,
     l.d1c                                                   AS localidade_id,
     l.d1n                                                   AS localidade,
     dim.d2n                                                 AS variavel,
     dim.d4n                                                 AS categoria,
     CASE WHEN d.v ~ '^-?[0-9]' THEN d.v::numeric END       AS valor
 FROM dados d
+JOIN periodo    p   ON d.periodo_id    = p.id
 JOIN dimensao   dim ON d.dimensao_id   = dim.id
 JOIN localidade l   ON d.localidade_id = l.id
 WHERE d.sidra_tabela_id IN ('7060', '1419')
@@ -393,7 +404,7 @@ Para detalhes sobre como adicionar ou editar transformações dentro do seu pró
 | `pipelines/snpc/ipca/` | `analytics.ipca` | IPCA completo |
 | `pipelines/snpc/inpc/` | `analytics.inpc` | INPC completo |
 | `pipelines/snpc/ipca15/` | `analytics.ipca15` | IPCA-15 completo |
-| `pipelines/pib_munic/pib/` | `analytics.pib_municipal` | PIB dos Municípios |
+| `pipelines/pib_munic/` | `analytics.pib_municipal` | PIB dos Municípios |
 | `pipelines/populacao/estimapop/` | `analytics.estimativa_populacao` | Estimativas de população |
 | `pipelines/populacao/censo_populacao/` | `analytics.censo_populacao` | Censo Demográfico |
 | `pipelines/populacao/contagem_populacao/` | `analytics.contagem_populacao` | Contagem da População |
@@ -605,6 +616,24 @@ sidra-sql/
 ├── README.md
 └── CREATING_PIPELINES.md     # Guia para criação de plugins
 ```
+
+---
+
+## Criando seus próprios pipelines
+
+O `sidra-sql` foi projetado para ser extensível. Qualquer série do IBGE disponível na API SIDRA pode ser transformada em um pipeline sem escrever nenhum código Python — apenas arquivos TOML e SQL.
+
+Para criar, publicar e instalar seus próprios plugins:
+
+👉 **[Guia completo: Criando e Usando Pipelines](CREATING_PIPELINES.md)**
+
+O guia cobre:
+- Como encontrar IDs de tabelas, variáveis e classificações no portal SIDRA
+- Estrutura completa de um repositório de plugin
+- Referência de todos os campos de `manifest.toml`, `fetch.toml` e `transform.toml`
+- Referência do esquema normalizado (colunas de cada tabela)
+- Exemplos completos do zero
+- Boas práticas para séries históricas, classificações complexas e transformações SQL
 
 ---
 
