@@ -639,4 +639,4 @@ O guia cobre:
 
 ## Licença
 
-GNU GPLv3
+Este projeto está licenciado sob a licença MIT — veja o arquivo [LICENSE](LICENSE) para detalhes.
