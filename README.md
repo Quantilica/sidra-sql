@@ -151,26 +151,26 @@ Isso garante que cada combinação de tabela × localidade × variável/classifi
 
 ---
 
-## Pipelines de referência incluídas
+## Pipelines Padrão (Plugin Oficial)
 
-O repositório contém pipelines de referência no diretório `pipelines/`. Elas servem como exemplos e podem ser usadas diretamente ou adaptadas para criar seus próprios plugins.
+O `sidra-sql` vem pré-configurado com o catálogo oficial de pipelines de referência (hospedado em [Quantilica/sidra-pipelines](https://github.com/Quantilica/sidra-pipelines)). Estas pipelines são instaladas automaticamente com o alias `std` na primeira execução do CLI.
 
-| Diretório | Pesquisa | Tabelas SIDRA |
+| Comando | Pesquisa | Tabelas SIDRA |
 |---|---|---|
-| `pipelines/pib_munic/` | **PIB dos Municípios** | 5938 |
-| `pipelines/populacao/estimapop/` | **Estimativas de População** | 6579 |
-| `pipelines/populacao/censo_populacao/` | **Censo Demográfico** | 200 |
-| `pipelines/populacao/contagem_populacao/` | **Contagem de População** | 305, 793 |
-| `pipelines/snpc/ipca/` | **IPCA** | 1692, 1693, 58, 61, 655, 656, 2938, 1419, 7060 |
-| `pipelines/snpc/ipca15/` | **IPCA-15** | 1646, 1387, 1705, 7062 |
-| `pipelines/snpc/inpc/` | **INPC** | 1686, 1690, 22, 23, 653, 654, 2951, 1100, 7063 |
-| `pipelines/ppm/rebanhos/` | **PPM — Rebanhos** | 73, 3939 |
-| `pipelines/ppm/producao/` | **PPM — Produção animal** | 74, 3940 |
-| `pipelines/ppm/exploracao/` | **PPM — Aquicultura e exploração** | 94, 95 |
-| `pipelines/pam/lavouras_temporarias/` | **PAM — Lavouras temporárias** | 839, 1000, 1001, 1002, 1612 |
-| `pipelines/pam/lavouras_permanentes/` | **PAM — Lavouras permanentes** | 1613 |
-| `pipelines/pevs/producao/` | **PEVS — Produção florestal** | 289, 291 |
-| `pipelines/pevs/area_florestal/` | **PEVS — Área florestal** | 5930 |
+| `sidra-sql run std pib_municipal` | **PIB dos Municípios** | 5938 |
+| `sidra-sql run std estimativa_populacao` | **Estimativas de População** | 6579 |
+| `sidra-sql run std censo_populacao` | **Censo Demográfico** | 200 |
+| `sidra-sql run std contagem_populacao` | **Contagem de População** | 305, 793 |
+| `sidra-sql run std ipca` | **IPCA** | 1692, 1693, 58, 61, 655, 656, 2938, 1419, 7060 |
+| `sidra-sql run std ipca15` | **IPCA-15** | 1646, 1387, 1705, 7062 |
+| `sidra-sql run std inpc` | **INPC** | 1686, 1690, 22, 23, 653, 654, 2951, 1100, 7063 |
+| `sidra-sql run std ppm_rebanhos` | **PPM — Rebanhos** | 73, 3939 |
+| `sidra-sql run std ppm_producao` | **PPM — Produção animal** | 74, 3940 |
+| `sidra-sql run std ppm_exploracao` | **PPM — Aquicultura e exploração** | 94, 95 |
+| `sidra-sql run std pam_lavouras_temporarias` | **PAM — Lavouras temporárias** | 839, 1000, 1001, 1002, 1612 |
+| `sidra-sql run std pam_lavouras_permanentes` | **PAM — Lavouras permanentes** | 1613 |
+| `sidra-sql run std pevs_producao` | **PEVS — Produção florestal** | 289, 291 |
+| `sidra-sql run std pevs_area_florestal` | **PEVS — Área florestal** | 5930 |
 
 Para criar suas próprias pipelines e distribuí-las como plugin, consulte o **[Guia de Criação de Pipelines](CREATING_PIPELINES.md)**.
 

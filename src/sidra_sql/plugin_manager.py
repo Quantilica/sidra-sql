@@ -12,6 +12,8 @@ import platformdirs
 logger = logging.getLogger(__name__)
 
 APP_NAME = "sidra-sql"
+DEFAULT_PLUGIN_URL = "https://github.com/Quantilica/sidra-pipelines.git"
+DEFAULT_PLUGIN_ALIAS = "std"
 
 
 @dataclass
@@ -129,6 +131,18 @@ class PluginManager:
 
         self.registry.remove_plugin(alias)
         logger.info("Plugin '%s' removed successfully.", alias)
+
+    def ensure_defaults(self):
+        """Garante que o plugin padrão esteja instalado."""
+        plugins = self.registry.get_plugins()
+        if DEFAULT_PLUGIN_ALIAS not in plugins:
+            logger.info("Instalando pipelines padrão...")
+            try:
+                self.install(DEFAULT_PLUGIN_URL, alias=DEFAULT_PLUGIN_ALIAS)
+            except Exception as e:
+                # Silenciosamente falha se não houver internet no bootstrap,
+                # permitindo que o usuário use o CLI de qualquer forma.
+                logger.debug(f"Falha ao instalar pipelines padrão: {e}")
 
     def read_manifest(self, alias: str) -> PluginManifest:
         plugin_path = self.registry.get_plugin_path(alias)

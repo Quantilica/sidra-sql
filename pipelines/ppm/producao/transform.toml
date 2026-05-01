@@ -1,5 +1,0 @@
-[table]
-name        = "ppm_producao"
-schema      = "analytics"
-strategy    = "replace"
-description = "PPM - produção de origem animal por tipo de produto e município"

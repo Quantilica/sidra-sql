@@ -1,7 +1,0 @@
-# Estimativas de População - EstimaPop
-# https://sidra.ibge.gov.br/pesquisa/estimapop/tabelas
-
-# Tabela 6579 - População residente estimada
-[[tabelas]]
-sidra_tabela = "6579"
-territories = {6 = []}

@@ -18,6 +18,12 @@ console = Console()
 manager = PluginManager()
 
 
+@app.callback()
+def bootstrap():
+    """Inicialização automática do sistema."""
+    manager.ensure_defaults()
+
+
 @plugin_app.command("install")
 def install_plugin(
     url: str,

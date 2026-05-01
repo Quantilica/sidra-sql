@@ -1,5 +1,0 @@
-[table]
-name        = "pevs_area_florestal"
-schema      = "analytics"
-strategy    = "replace"
-description = "PEVS - área de florestas plantadas por tipo de floresta e município"

@@ -1,5 +1,0 @@
-[table]
-name        = "ppm_rebanhos"
-schema      = "analytics"
-strategy    = "replace"
-description = "PPM - efetivo dos rebanhos por tipo e município"

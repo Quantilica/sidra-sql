@@ -1,5 +1,0 @@
-[table]
-name        = "ipca"
-schema      = "analytics"
-strategy    = "replace"
-description = "IPCA - variação e peso mensal por categoria e localidade"

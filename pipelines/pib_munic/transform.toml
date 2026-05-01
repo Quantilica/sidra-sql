@@ -1,5 +1,0 @@
-[table]
-name        = "pib_municipal"
-schema      = "analytics"
-strategy    = "replace"
-description = "PIB dos Municípios - valor adicionado por atividade econômica"

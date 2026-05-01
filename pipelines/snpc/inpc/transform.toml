@@ -1,5 +1,0 @@
-[table]
-name        = "inpc"
-schema      = "analytics"
-strategy    = "replace"
-description = "INPC - variação e peso mensal por categoria e localidade"

@@ -1,5 +1,0 @@
-[table]
-name        = "pam_lavouras_permanentes"
-schema      = "analytics"
-strategy    = "replace"
-description = "PAM - área colhida, produção, rendimento e valor das lavouras permanentes"
