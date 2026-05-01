@@ -2,7 +2,7 @@
 
 **Pipeline ETL robusto para baixar, normalizar e carregar tabelas agregadas do SIDRA/IBGE em PostgreSQL.**
 
----
+![SIDRA-SQL banner](./assets/banner.png)
 
 Trabalhar com dados do IBGE é uma tarefa que todo analista e cientista de dados brasileiro conhece bem — e sabe que não é simples. A API SIDRA disponibiliza um acervo imenso de séries estatísticas (PIB municipal, população, inflação, agropecuária e muito mais), mas transformar esses dados brutos em um banco de dados relacional, limpo, normalizado e pronto para consulta é trabalhoso e cheio de armadilhas.
 
@@ -457,7 +457,6 @@ API SIDRA (IBGE)
          │  → usa data de modificação da API      │
          │  → stream via COPY para staging table  │
          │  → INSERT com ON CONFLICT DO NOTHING   │
-
          └───────────────┬────────────────────────┘
                          │
                          ▼
