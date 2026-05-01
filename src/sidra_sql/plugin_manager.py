@@ -79,7 +79,16 @@ class PluginManager:
     def __init__(self):
         self.registry = PluginRegistry()
 
+    def _check_git(self):
+        """Verifica se o Git está instalado."""
+        if shutil.which("git") is None:
+            raise RuntimeError(
+                "Git não encontrado. O Git é necessário para gerenciar e baixar plugins. "
+                "Por favor, instale o Git (https://git-scm.com/) e tente novamente."
+            )
+
     def install(self, url: str, alias: Optional[str] = None):
+        self._check_git()
         if not alias:
             # simple alias extraction from url
             alias = url.rstrip("/").split("/")[-1]
@@ -98,6 +107,7 @@ class PluginManager:
         logger.info("Plugin '%s' installed successfully.", alias)
 
     def update(self, alias: Optional[str] = None):
+        self._check_git()
         plugins = self.registry.get_plugins()
         target_aliases = [alias] if alias else list(plugins.keys())
 
@@ -136,8 +146,9 @@ class PluginManager:
         """Garante que o plugin padrão esteja instalado."""
         plugins = self.registry.get_plugins()
         if DEFAULT_PLUGIN_ALIAS not in plugins:
-            logger.info("Instalando pipelines padrão...")
             try:
+                self._check_git()
+                logger.info("Instalando pipelines padrão...")
                 self.install(DEFAULT_PLUGIN_URL, alias=DEFAULT_PLUGIN_ALIAS)
             except Exception as e:
                 # Silenciosamente falha se não houver internet no bootstrap,
