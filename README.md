@@ -181,7 +181,7 @@ Para criar suas próprias pipelines e distribuí-las como plugin, consulte o **[
 - **Python 3.13+**
 - **PostgreSQL 14+** (com usuário e banco de dados criados)
 - Acesso à internet para consultar a API SIDRA do IBGE
-- Biblioteca [`sidra-fetcher`](https://github.com/dankkom/sidra-fetcher) (instalada automaticamente via `pyproject.toml`)
+- Biblioteca [`sidra-fetcher`](https://github.com/Quantilica/sidra-fetcher) (instalada automaticamente via `pyproject.toml`)
 
 ---
 
@@ -189,7 +189,7 @@ Para criar suas próprias pipelines e distribuí-las como plugin, consulte o **[
 
 ```bash
 # 1. Clone o repositório
-git clone https://github.com/dankkom/sidra-sql.git
+git clone https://github.com/Quantilica/sidra-sql.git
 cd sidra-sql
 
 # 2. Crie e ative o ambiente virtual
@@ -205,7 +205,7 @@ pip install -e .
 
 | Pacote | Uso |
 |---|---|
-| [`sidra-fetcher`](https://github.com/dankkom/sidra-fetcher) | Cliente HTTP para a API SIDRA do IBGE |
+| [`sidra-fetcher`](https://github.com/Quantilica/sidra-fetcher) | Cliente HTTP para a API SIDRA do IBGE |
 | `psycopg[binary] >= 3.2.9` | Adaptador PostgreSQL com extensões C |
 | `sqlalchemy >= 2.0.41` | ORM e geração de SQL |
 | `orjson >= 3.11.7` | Serialização JSON de alta performance |
@@ -244,7 +244,7 @@ O sistema gerencia pipelines através de uma interface de linha de comando (CLI)
 
 ```bash
 # Instalar um plugin via URL do Git
-sidra-sql plugin install https://github.com/dankkom/sidra-pipeline-pam.git --alias pam
+sidra-sql plugin install https://github.com/Quantilica/sidra-pipeline-pam.git --alias pam
 
 # Listar os plugins instalados e suas pipelines disponíveis
 sidra-sql plugin list
