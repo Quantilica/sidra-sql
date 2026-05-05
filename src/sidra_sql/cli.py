@@ -300,6 +300,32 @@ def run_pipeline(
         traceback.print_exc()
 
 
+@app.command("run-path")
+def run_pipeline_path(
+    path: Path = typer.Argument(..., help="Path to the pipeline directory"),
+    force_metadata: bool = typer.Option(
+        False, "--force-metadata", help="Force refresh metadata"
+    ),
+):
+    """Run a pipeline directly from a directory path, without a registered plugin."""
+    try:
+        resolved = path.resolve()
+        if not resolved.is_dir():
+            console.print(f"[bold red]Directory not found:[/bold red] {resolved}")
+            raise typer.Exit(1)
+
+        config = Config()
+        console.print(f"[bold blue]Running pipeline from {resolved}[/bold blue]")
+        run_subtree(config, resolved, force_metadata=force_metadata, console=console)
+        console.print("[bold green]Pipeline completed successfully![/bold green]")
+    except Exception as e:
+        console.print(f"[bold red]Pipeline failed:[/bold red] {e}")
+        import traceback
+
+        traceback.print_exc()
+        raise typer.Exit(1)
+
+
 @app.command("transform")
 def transform_pipeline(
     alias: str = typer.Argument(..., help="Plugin alias"),
