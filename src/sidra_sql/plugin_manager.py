@@ -23,8 +23,7 @@ DEFAULT_PLUGIN_ALIAS = "std"
 class PipelineDef:
     id: str
     description: str
-    fetch: Path
-    transform: Path
+    path: Path
 
 
 @dataclass
@@ -176,8 +175,7 @@ class PluginManager:
                 PipelineDef(
                     id=p["id"],
                     description=p.get("description", ""),
-                    fetch=plugin_path / p["fetch"],
-                    transform=plugin_path / p["transform"],
+                    path=plugin_path / p["path"],
                 )
             )
 

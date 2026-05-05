@@ -5,6 +5,9 @@
       "Bash(python:*)",
       "Bash(uv run:*)",
       "Bash(git commit:*)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\dk\\projects\\Quantilica\\sidra-pipelines"
     ]
   }
 }

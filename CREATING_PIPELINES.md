@@ -107,14 +107,12 @@ version     = "1.0.0"
 [[pipeline]]
 id          = "agricultura"
 description = "Produção Agrícola Municipal (PAM)"
-fetch       = "agricultura/fetch.toml"
-transform   = "agricultura/transform.toml"
+path        = "agricultura"
 
 [[pipeline]]
 id          = "pecuaria"
 description = "Pesquisa Pecuária Municipal (PPM)"
-fetch       = "pecuaria/fetch.toml"
-transform   = "pecuaria/transform.toml"
+path        = "pecuaria"
 ```
 
 | Campo | Tipo | Descrição |
@@ -125,8 +123,40 @@ transform   = "pecuaria/transform.toml"
 | `[[pipeline]]` | array | Uma entrada por pipeline |
 | `pipeline.id` | string | Identificador usado na CLI (`sidra-sql run <alias> <id>`) |
 | `pipeline.description` | string | Descrição amigável |
-| `pipeline.fetch` | path | Caminho relativo ao `fetch.toml` |
-| `pipeline.transform` | path | Caminho relativo ao `transform.toml` |
+| `pipeline.path` | path | Diretório raiz da pipeline (relativo à raiz do plugin). O motor descobre `fetch.toml` e `transform.toml` dentro dele e percorre subdiretórios recursivamente. |
+
+### Resolução hierárquica
+
+O motor caminha o diretório de uma pipeline em **pós-ordem (depth-first)**: cada subdiretório que contém `fetch.toml` ou `transform.toml` é tratado como uma sub-pipeline e executa **antes** do diretório-pai. Isso permite criar transformações de segundo nível que consomem as tabelas `analytics.*` produzidas pelas filhas.
+
+Exemplo — `path = "populacao"`:
+
+```text
+populacao/
+├── transform.toml          ← roda por último (UNION das filhas)
+├── transform.sql
+├── censo_populacao/        ← roda primeiro (fetch + transform)
+│   ├── fetch.toml
+│   ├── transform.toml
+│   └── transform.sql
+├── contagem_populacao/     ← roda em seguida
+│   └── ...
+└── estimapop/              ← roda em seguida
+    └── ...
+```
+
+Ordem de execução com `sidra-sql run std populacao`:
+
+1. `censo_populacao` (fetch → transform → `analytics.censo_populacao`)
+2. `contagem_populacao` (idem)
+3. `estimapop` (idem → `analytics.estimativa_populacao`)
+4. `populacao` (apenas transform; SQL faz `UNION ALL` referenciando `analytics.*`)
+
+Regras:
+
+- Um diretório pode ter apenas `transform.toml` (rollup puro), apenas `fetch.toml` (raro), ambos (folha clássica) ou nenhum (container de agrupamento).
+- Filhas são processadas em ordem alfabética (`sorted(iterdir())`).
+- Para SQL de rollup que lê de outras tabelas analíticas, **use o nome qualificado** (`analytics.tabela`) — o `search_path` continua apontando para `ibge_sidra`.
 
 ---
 
@@ -526,8 +556,7 @@ version     = "1.0.0"
 [[pipeline]]
 id          = "pib"
 description = "PIB dos Municípios (Tabela 5938)"
-fetch       = "pib/fetch.toml"
-transform   = "pib/transform.toml"
+path        = "pib"
 ```
 
 **`pib/fetch.toml`:**

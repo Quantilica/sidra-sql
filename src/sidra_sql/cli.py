@@ -10,8 +10,7 @@ from rich.table import Table
 
 from sidra_sql.config import Config
 from sidra_sql.plugin_manager import PluginManager
-from sidra_sql.toml_runner import TomlScript
-from sidra_sql.transform_runner import TransformRunner
+from sidra_sql.runner import run_subtree
 
 app = typer.Typer(help="Sidra-SQL CLI - Manage and run data pipelines")
 plugin_app = typer.Typer(help="Manage pipeline plugins")
@@ -102,17 +101,12 @@ def run_pipeline(
             f"[bold blue]Running pipeline {pipeline_id} from {alias}[/bold blue]"
         )
 
-        # Run Fetch
-        console.print("[blue]-> Running Fetch...[/blue]")
-        toml_script = TomlScript(
-            config, pipeline.fetch, force_metadata=force_metadata
+        run_subtree(
+            config,
+            pipeline.path,
+            force_metadata=force_metadata,
+            console=console,
         )
-        toml_script.run()
-
-        # Run Transform
-        console.print("[blue]-> Running Transform...[/blue]")
-        transform_runner = TransformRunner(config, pipeline.transform)
-        transform_runner.run()
 
         console.print(
             "[bold green]Pipeline completed successfully![/bold green]"
