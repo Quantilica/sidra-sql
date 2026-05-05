@@ -26,13 +26,14 @@ Este projeto resolve exatamente esse problema: um pipeline ETL completo, com con
 - [Funcionalidades](#funcionalidades)
 - [Arquitetura](#arquitetura)
 - [Esquema do Banco de Dados](#esquema-do-banco-de-dados)
-- [Pipelines de referência incluídas](#pipelines-de-referência-incluídas)
+- [Pipelines Padrão (Plugin Oficial)](#pipelines-padrão-plugin-oficial)
 - [Pré-requisitos](#pré-requisitos)
 - [Instalação](#instalação)
 - [Configuração](#configuração)
 - [Uso](#uso)
-  - [Executar um pipeline](#executar-um-pipeline)
-  - [Executar todos os pipelines](#executar-todos-os-pipelines)
+  - [Gerenciar Plugins](#1-gerenciar-plugins)
+  - [Criar e Desenvolver Plugins](#2-criar-e-desenvolver-plugins)
+  - [Executar Pipelines](#3-executar-pipelines)
 - [Formato TOML](#formato-toml)
 - [Transformações](#transformações)
 - [Fluxo de Dados](#fluxo-de-dados)
@@ -256,16 +257,58 @@ sidra-sql plugin update pam
 sidra-sql plugin remove pam
 ```
 
-### 2. Executar uma pipeline
+### 2. Criar e Desenvolver Plugins
 
-Use o comando `run`, especificando o "alias" do plugin e o "id" da pipeline (mostrados via `sidra-sql plugin list`):
+O CLI inclui comandos para criar e iterar sobre plugins localmente, sem precisar escrever os arquivos manualmente.
 
 ```bash
-# Baixa os dados e executa a transformação da pipeline 'lavouras_temporarias' do plugin 'pam'
+# Criar a estrutura completa de um novo plugin
+sidra-sql plugin scaffold meu-plugin --description "Meus dados do IBGE"
+
+# Adicionar um pipeline a um plugin existente (rodar dentro do diretório do plugin)
+cd meu-plugin
+sidra-sql plugin add-pipeline nova_serie --description "Nova série de dados"
+
+# Adicionar um pipeline com caminho aninhado
+sidra-sql plugin add-pipeline ipca_municipios --path "precos/ipca" --description "IPCA municipal"
+
+# Validar a estrutura do plugin antes de publicar
+sidra-sql plugin validate
+
+# Validar um plugin já instalado pelo alias
+sidra-sql plugin validate std
+```
+
+O comando `scaffold` cria:
+```
+meu-plugin/
+├── .gitignore
+├── README.md
+├── manifest.toml
+└── meu_plugin/
+    ├── fetch.toml      ← template comentado com referências ao SIDRA
+    ├── transform.toml
+    └── transform.sql
+```
+
+Para o fluxo completo de criação de plugins, veja o **[Guia de Criação de Pipelines](CREATING_PIPELINES.md)**.
+
+### 3. Executar Pipelines
+
+Use o comando `run`, especificando o alias do plugin e o id do pipeline (mostrados via `sidra-sql plugin list`):
+
+```bash
+# Baixa os dados e executa a transformação do pipeline 'lavouras_temporarias' do plugin 'pam'
 sidra-sql run pam lavouras_temporarias
+
+# Executa todos os pipelines de um plugin
+sidra-sql run pam
 
 # Executa forçando a atualização de metadados
 sidra-sql run pam lavouras_temporarias --force-metadata
+
+# Executar apenas a etapa de transformação (sem fetch nem recursão)
+sidra-sql transform pam lavouras_temporarias
 ```
 
 ---
@@ -601,6 +644,8 @@ sidra-sql/
 │   ├── __init__.py
 │   ├── cli.py                # Interface de Linha de Comando (Typer)
 │   ├── plugin_manager.py     # Gerenciamento de plugins, Git e manifests
+│   ├── scaffold.py           # Geração de plugins e pipelines (scaffold, add-pipeline)
+│   ├── validator.py          # Validação de estrutura de plugins
 │   ├── toml_runner.py        # TomlScript — orquestra o pipeline ETL de extração
 │   ├── transform_runner.py   # TransformRunner — materializa TOML+SQL analíticos
 │   ├── config.py             # Leitura de config.ini
@@ -622,11 +667,31 @@ sidra-sql/
 
 O `sidra-sql` foi projetado para ser extensível. Qualquer série do IBGE disponível na API SIDRA pode ser transformada em um pipeline sem escrever nenhum código Python — apenas arquivos TOML e SQL.
 
-Para criar, publicar e instalar seus próprios plugins:
+O CLI inclui comandos para acelerar o processo de criação:
+
+```bash
+# 1. Criar o esqueleto do plugin
+sidra-sql plugin scaffold meu-plugin --description "Descrição do plugin"
+
+# 2. Editar os templates gerados com os dados reais do SIDRA
+
+# 3. Adicionar mais pipelines conforme necessário
+cd meu-plugin
+sidra-sql plugin add-pipeline outra_serie --description "Outra pesquisa"
+
+# 4. Validar antes de publicar
+sidra-sql plugin validate
+
+# 5. Publicar no Git e instalar
+sidra-sql plugin install <git-url> --alias meu-alias
+```
+
+Para o fluxo completo com exemplos e referências de todos os campos:
 
 👉 **[Guia completo: Criando e Usando Pipelines](CREATING_PIPELINES.md)**
 
 O guia cobre:
+- Como criar um plugin do zero com o CLI (`scaffold`, `add-pipeline`, `validate`)
 - Como encontrar IDs de tabelas, variáveis e classificações no portal SIDRA
 - Estrutura completa de um repositório de plugin
 - Referência de todos os campos de `manifest.toml`, `fetch.toml` e `transform.toml`

@@ -7,6 +7,7 @@ Este guia é destinado a desenvolvedores e cientistas de dados brasileiros que q
 ## Índice
 
 - [Conceitos Fundamentais](#conceitos-fundamentais)
+- [Criando um plugin com o CLI](#criando-um-plugin-com-o-cli)
 - [Encontrando Dados no SIDRA](#encontrando-dados-no-sidra)
 - [Estrutura de um Plugin](#estrutura-de-um-plugin)
 - [O arquivo `manifest.toml`](#o-arquivo-manifesttoml)
@@ -47,6 +48,96 @@ Plugin (seu repositório Git)
 Motor sidra-sql
 └── lê o manifest → executa fetch → executa transform
 ```
+
+---
+
+## Criando um plugin com o CLI
+
+O `sidra-sql` inclui comandos para gerar a estrutura de um plugin automaticamente, com templates comentados que guiam o preenchimento.
+
+### Fluxo completo
+
+```bash
+# 1. Criar o plugin — gera manifest.toml, README.md, .gitignore
+#    e o primeiro pipeline com fetch.toml, transform.toml e transform.sql
+sidra-sql plugin scaffold meu-plugin \
+    --description "Dados agropecuários do IBGE" \
+    --version "1.0.0"
+
+# A estrutura criada:
+# meu-plugin/
+# ├── .gitignore
+# ├── README.md
+# ├── manifest.toml
+# └── meu_plugin/
+#     ├── fetch.toml
+#     ├── transform.toml
+#     └── transform.sql
+
+# 2. Editar os templates:
+#    - Em fetch.toml: substituir "XXXX" pelo ID da tabela SIDRA
+#    - Em transform.toml: ajustar o nome da tabela de saída
+#    - Em transform.sql: escrever a query de transformação
+
+# 3. Adicionar mais pipelines conforme necessário
+cd meu-plugin
+sidra-sql plugin add-pipeline pam --description "Produção Agrícola Municipal"
+
+# Pipeline com caminho aninhado (cria precos/ipca/ e registra no manifest)
+sidra-sql plugin add-pipeline ipca --path "precos/ipca" --description "IPCA"
+
+# Informar --plugin-dir se não estiver dentro do diretório do plugin
+sidra-sql plugin add-pipeline serie --plugin-dir /caminho/para/meu-plugin
+
+# 4. Validar a estrutura antes de publicar
+sidra-sql plugin validate
+# Ou se estiver fora do diretório:
+sidra-sql plugin validate --plugin-dir ./meu-plugin
+
+# Saída esperada (exemplo):
+# manifest.toml
+#   [OK] TOML válido
+#   [OK] 2 pipeline(s) declarado(s)
+# meu_plugin
+#   [OK] fetch.toml válido (1 tabela(s))
+#   [OK] transform.toml válido
+#   [OK] transform.sql presente
+# Resultado: Válido, sem erros ou avisos
+
+# 5. Publicar no Git e instalar
+git remote add origin https://github.com/seu-usuario/meu-plugin.git
+git push -u origin main
+sidra-sql plugin install https://github.com/seu-usuario/meu-plugin.git --alias meu-alias
+```
+
+### Opções do `scaffold`
+
+| Opção | Padrão | Descrição |
+|---|---|---|
+| `--description`, `-d` | `""` | Descrição do plugin |
+| `--version` | `"1.0.0"` | Versão semântica |
+| `--output-dir`, `-o` | `.` | Onde criar o diretório do plugin |
+| `--git-init` / `--no-git-init` | git-init | Inicializa repositório Git com commit inicial |
+
+### Opções do `add-pipeline`
+
+| Opção | Padrão | Descrição |
+|---|---|---|
+| `--description`, `-d` | `""` | Descrição do pipeline |
+| `--path`, `-p` | `<pipeline-id>` | Caminho relativo ao plugin (suporta `/` para aninhamento) |
+| `--plugin-dir` | `.` | Raiz do plugin (padrão: diretório atual) |
+
+### O que o `validate` verifica
+
+| O que | Erros | Avisos |
+|---|---|---|
+| `manifest.toml` | TOML inválido, `id`/`path` ausentes, IDs duplicados | `name`/`version` ausentes, nenhum pipeline declarado |
+| Diretório do pipeline | Diretório não existe | — |
+| `fetch.toml` | TOML inválido, nenhuma `[[tabelas]]`, `sidra_tabela` ausente | — |
+| `transform.toml` | TOML inválido, `[table]` ausente, campos `name`/`schema`/`strategy` faltando | — |
+| `transform.sql` | Ausente quando `transform.toml` existe | — |
+
+O comando retorna código de saída `1` se houver erros — útil em pipelines de CI.
 
 ---
 
@@ -434,7 +525,23 @@ As tabelas abaixo ficam no schema configurado em `config.ini` (padrão: `ibge_si
 
 ## Usando a CLI
 
-### Gerenciando plugins
+### Criando e desenvolvendo plugins
+
+```bash
+# Criar a estrutura de um novo plugin
+sidra-sql plugin scaffold meu-plugin --description "Meus dados do IBGE"
+
+# Adicionar pipelines a um plugin existente (dentro do diretório do plugin)
+cd meu-plugin
+sidra-sql plugin add-pipeline nova_serie --description "Nova pesquisa"
+sidra-sql plugin add-pipeline ipca --path "precos/ipca" --description "IPCA"
+
+# Validar o plugin (dentro do diretório ou com --plugin-dir)
+sidra-sql plugin validate
+sidra-sql plugin validate --plugin-dir ./meu-plugin
+```
+
+### Gerenciando plugins instalados
 
 ```bash
 # Instalar um plugin a partir de um repositório Git
@@ -445,6 +552,9 @@ sidra-sql plugin install https://github.com/seu-usuario/sidra-pipeline-pam.git
 
 # Listar plugins instalados e suas pipelines
 sidra-sql plugin list
+
+# Validar um plugin já instalado
+sidra-sql plugin validate agro
 
 # Atualizar um plugin (git pull)
 sidra-sql plugin update agro
@@ -459,16 +569,24 @@ sidra-sql plugin remove agro
 ### Executando pipelines
 
 ```bash
-# Executar uma pipeline (download + transformação)
+# Executar um pipeline (download + transformação)
 sidra-sql run agro agricultura
+
+# Executar todos os pipelines de um plugin
+sidra-sql run agro
 
 # Forçar atualização de metadados (ignora cache de metadados)
 sidra-sql run agro agricultura --force-metadata
+
+# Executar apenas a etapa de transformação (sem fetch nem recursão)
+sidra-sql transform agro agricultura
 ```
 
 O comando `run` executa sequencialmente:
 1. **Fetch:** baixa os dados da API SIDRA (com cache e retry)
 2. **Transform:** executa o SQL e materializa a tabela analítica
+
+Use `sidra-sql transform` quando quiser reiterar apenas a query SQL sem re-baixar os dados.
 
 ### Consultando dados no banco
 
@@ -507,9 +625,13 @@ ORDER BY periodo DESC;
 
 ### Publicando
 
-1. Crie um repositório no GitHub (ou GitLab, Bitbucket, etc.)
-2. Suba os arquivos: `manifest.toml` e os diretórios de cada pipeline
-3. O repositório pode ser público ou privado (desde que o usuário tenha acesso via Git)
+1. Valide a estrutura localmente antes de publicar:
+   ```bash
+   sidra-sql plugin validate
+   ```
+2. Crie um repositório no GitHub (ou GitLab, Bitbucket, etc.)
+3. Suba os arquivos: `manifest.toml` e os diretórios de cada pipeline
+4. O repositório pode ser público ou privado (desde que o usuário tenha acesso via Git)
 
 ### Instalando
 
@@ -722,5 +844,6 @@ WHERE d.sidra_tabela_id = '1613'
 
 - **Um repositório por tema:** separe agropecuária, preços e demografia em plugins distintos.
 - **Um diretório por pipeline:** facilita manutenção e versionamento de cada série individualmente.
+- **Use `sidra-sql plugin validate` antes de cada commit:** evita publicar plugins com estrutura quebrada.
 - **Documente o README:** inclua as tabelas SIDRA usadas, a periodicidade, as variáveis disponíveis na tabela analítica e quaisquer ressalvas metodológicas do IBGE.
 - **Versione com tags Git:** permite que usuários fixem uma versão estável do plugin.
