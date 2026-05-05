@@ -13,6 +13,7 @@ from sidra_sql.config import Config
 from sidra_sql.plugin_manager import PluginManager
 from sidra_sql.runner import run_subtree
 from sidra_sql.scaffold import PipelineAdder, PluginScaffolder
+from sidra_sql.validator import PluginValidator, Severity
 from sidra_sql.transform_runner import TransformRunner
 
 app = typer.Typer(help="Sidra-SQL CLI - Manage and run data pipelines")
@@ -162,6 +163,60 @@ def add_pipeline(
         raise typer.Exit(1)
     except Exception as e:
         console.print(f"[red]Erro ao adicionar pipeline:[/red] {e}")
+        raise typer.Exit(1)
+
+
+@plugin_app.command("validate")
+def validate_plugin(
+    alias: Optional[str] = typer.Argument(
+        None, help="Alias do plugin instalado (omitir para usar --plugin-dir)"
+    ),
+    plugin_dir: Path = typer.Option(
+        Path("."), "--plugin-dir", help="Diretório raiz do plugin (default: diretório atual)"
+    ),
+):
+    """Valida a estrutura e os arquivos de um plugin."""
+    if alias is not None:
+        target_dir = manager.registry.get_plugin_path(alias)
+        if not target_dir.exists():
+            console.print(f"[red]Erro:[/red] Plugin '{alias}' não encontrado.")
+            raise typer.Exit(1)
+    else:
+        target_dir = plugin_dir
+
+    console.print(f"\n[bold]Validando plugin em[/bold] {target_dir}\n")
+
+    report = PluginValidator(target_dir).validate()
+
+    severity_style = {
+        Severity.OK: "[green]OK[/green]",
+        Severity.WARN: "[yellow]AVISO[/yellow]",
+        Severity.ERROR: "[red]ERRO[/red]",
+    }
+
+    for section in report.sections:
+        console.print(f"[bold cyan]{section.title}[/bold cyan]")
+        for issue in section.issues:
+            tag = severity_style[issue.severity]
+            console.print(f"  [{tag}] {issue.message}")
+        console.print()
+
+    if report.is_valid:
+        summary = "[bold green]Válido[/bold green]"
+    else:
+        summary = "[bold red]Inválido[/bold red]"
+
+    parts = [summary]
+    if report.error_count:
+        parts.append(f"[red]{report.error_count} erro(s)[/red]")
+    if report.warning_count:
+        parts.append(f"[yellow]{report.warning_count} aviso(s)[/yellow]")
+    if not report.error_count and not report.warning_count:
+        parts.append("sem erros ou avisos")
+
+    console.print("Resultado: " + ", ".join(parts) + "\n")
+
+    if not report.is_valid:
         raise typer.Exit(1)
 
 
