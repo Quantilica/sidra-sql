@@ -2,6 +2,7 @@
 # Licensed under the MIT License.
 
 import logging
+from pathlib import Path
 from typing import Optional
 
 import typer
@@ -11,6 +12,7 @@ from rich.table import Table
 from sidra_sql.config import Config
 from sidra_sql.plugin_manager import PluginManager
 from sidra_sql.runner import run_subtree
+from sidra_sql.scaffold import PipelineAdder, PluginScaffolder
 from sidra_sql.transform_runner import TransformRunner
 
 app = typer.Typer(help="Sidra-SQL CLI - Manage and run data pipelines")
@@ -64,6 +66,103 @@ def remove_plugin(
         console.print(f"[green]Plugin '{alias}' removed.[/green]")
     except Exception as e:
         console.print(f"[red]Error removing plugin:[/red] {e}")
+
+
+@plugin_app.command("scaffold")
+def scaffold_plugin(
+    name: str = typer.Argument(..., help="Nome do plugin (vira o diretório raiz)"),
+    description: str = typer.Option(
+        "", "--description", "-d", help="Descrição do plugin"
+    ),
+    version: str = typer.Option("1.0.0", "--version", help="Versão semântica"),
+    output_dir: Path = typer.Option(
+        Path("."), "--output-dir", "-o", help="Diretório de saída"
+    ),
+    git_init: bool = typer.Option(
+        True, "--git-init/--no-git-init", help="Inicializar repositório Git"
+    ),
+):
+    """Cria a estrutura de arquivos para um novo plugin com templates prontos."""
+    try:
+        scaffolder = PluginScaffolder(name, description, version, output_dir, git_init)
+        plugin_dir = scaffolder.create()
+        slug = scaffolder.slug
+
+        console.print(
+            f"\n[bold green]Plugin '{name}' criado em {plugin_dir}[/bold green]\n"
+        )
+        console.print("  manifest.toml")
+        console.print(f"  {slug}/")
+        console.print("    fetch.toml")
+        console.print("    transform.toml")
+        console.print("    transform.sql")
+        console.print("  README.md")
+        if git_init:
+            console.print("  .gitignore")
+
+        console.print("\n[bold]Próximos passos:[/bold]")
+        console.print("  1. Edite [cyan]manifest.toml[/cyan] e ajuste a descrição do pipeline")
+        console.print(
+            f"  2. Em [cyan]{slug}/fetch.toml[/cyan], substitua XXXX pelo ID da tabela SIDRA"
+        )
+        console.print(
+            f"  3. Ajuste [cyan]{slug}/transform.sql[/cyan] para a sua transformação"
+        )
+        console.print(
+            "  4. Publique o repositório e instale: "
+            "[dim]sidra-sql plugin install <git-url>[/dim]\n"
+        )
+    except FileExistsError as e:
+        console.print(f"[red]Erro:[/red] {e}")
+        raise typer.Exit(1)
+    except RuntimeError as e:
+        console.print(f"[red]Erro:[/red] {e}")
+        raise typer.Exit(1)
+
+
+@plugin_app.command("add-pipeline")
+def add_pipeline(
+    pipeline_id: str = typer.Argument(..., help="ID do pipeline (usado em 'sidra-sql run')"),
+    description: str = typer.Option(
+        "", "--description", "-d", help="Descrição do pipeline"
+    ),
+    path: str = typer.Option(
+        "", "--path", "-p", help="Caminho do diretório relativo ao plugin (default: pipeline-id)"
+    ),
+    plugin_dir: Path = typer.Option(
+        Path("."), "--plugin-dir", help="Diretório raiz do plugin (default: diretório atual)"
+    ),
+):
+    """Adiciona um novo pipeline a um plugin existente."""
+    try:
+        adder = PipelineAdder(pipeline_id, description, path, plugin_dir)
+        pipeline_dir_created = adder.add()
+
+        console.print(
+            f"\n[bold green]Pipeline '{pipeline_id}' adicionado[/bold green]\n"
+        )
+        console.print(f"  {adder.path}/")
+        console.print("    fetch.toml")
+        console.print("    transform.toml")
+        console.print("    transform.sql")
+        console.print("  manifest.toml [dim](atualizado)[/dim]\n")
+
+        console.print("[bold]Próximos passos:[/bold]")
+        console.print(
+            f"  1. Em [cyan]{adder.path}/fetch.toml[/cyan], substitua XXXX pelo ID da tabela SIDRA"
+        )
+        console.print(
+            f"  2. Ajuste [cyan]{adder.path}/transform.sql[/cyan] para a sua transformação"
+        )
+        console.print(
+            f"  3. Execute: [dim]sidra-sql run <alias> {pipeline_id}[/dim]\n"
+        )
+    except (FileNotFoundError, FileExistsError, ValueError) as e:
+        console.print(f"[red]Erro:[/red] {e}")
+        raise typer.Exit(1)
+    except Exception as e:
+        console.print(f"[red]Erro ao adicionar pipeline:[/red] {e}")
+        raise typer.Exit(1)
 
 
 @plugin_app.command("list")
