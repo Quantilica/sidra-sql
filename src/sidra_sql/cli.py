@@ -88,30 +88,56 @@ def list_plugins():
 @app.command("run")
 def run_pipeline(
     alias: str = typer.Argument(..., help="Plugin alias"),
-    pipeline_id: str = typer.Argument(..., help="Pipeline ID to run"),
+    pipeline_id: Optional[str] = typer.Argument(
+        None, help="Pipeline ID to run (omit to run all)"
+    ),
     force_metadata: bool = typer.Option(
         False, "--force-metadata", help="Force refresh metadata"
     ),
 ):
-    """Run a specific pipeline from an installed plugin."""
+    """Run pipeline(s) from an installed plugin. Omit pipeline_id to run all."""
     try:
-        config = Config.from_file()
-        pipeline = manager.get_pipeline(alias, pipeline_id)
+        config = Config()
 
-        console.print(
-            f"[bold blue]Running pipeline {pipeline_id} from {alias}[/bold blue]"
-        )
+        if pipeline_id is None:
+            manifest = manager.read_manifest(alias)
+            pipelines = manifest.pipelines
+            if not pipelines:
+                console.print(
+                    f"[yellow]No pipelines found in '{alias}'.[/yellow]"
+                )
+                return
+            console.print(
+                f"[bold blue]Running all {len(pipelines)} pipeline(s) from '{alias}'[/bold blue]"
+            )
+            for p in pipelines:
+                console.print(f"\n[cyan]→ {p.id}[/cyan]")
+                run_subtree(
+                    config,
+                    p.path,
+                    force_metadata=force_metadata,
+                    console=console,
+                )
+            console.print(
+                "\n[bold green]All pipelines completed successfully![/bold green]"
+            )
+        else:
+            pipeline = manager.get_pipeline(alias, pipeline_id)
 
-        run_subtree(
-            config,
-            pipeline.path,
-            force_metadata=force_metadata,
-            console=console,
-        )
+            console.print(
+                f"[bold blue]Running pipeline {pipeline_id} from {alias}[/bold blue]"
+            )
 
-        console.print(
-            "[bold green]Pipeline completed successfully![/bold green]"
-        )
+            run_subtree(
+                config,
+                pipeline.path,
+                force_metadata=force_metadata,
+                console=console,
+            )
+
+            console.print(
+                "[bold green]Pipeline completed successfully![/bold green]"
+            )
 
     except Exception as e:
         console.print(f"[bold red]Pipeline failed:[/bold red] {e}")
@@ -127,7 +153,7 @@ def transform_pipeline(
 ):
     """Run only the transform step of a pipeline, without fetch or recursion."""
     try:
-        config = Config.from_file()
+        config = Config()
         pipeline = manager.get_pipeline(alias, pipeline_id)
 
         transform_path = pipeline.path / "transform.toml"
