@@ -11,6 +11,7 @@ from rich.table import Table
 from sidra_sql.config import Config
 from sidra_sql.plugin_manager import PluginManager
 from sidra_sql.runner import run_subtree
+from sidra_sql.transform_runner import TransformRunner
 
 app = typer.Typer(help="Sidra-SQL CLI - Manage and run data pipelines")
 plugin_app = typer.Typer(help="Manage pipeline plugins")
@@ -114,6 +115,38 @@ def run_pipeline(
 
     except Exception as e:
         console.print(f"[bold red]Pipeline failed:[/bold red] {e}")
+        import traceback
+
+        traceback.print_exc()
+
+
+@app.command("transform")
+def transform_pipeline(
+    alias: str = typer.Argument(..., help="Plugin alias"),
+    pipeline_id: str = typer.Argument(..., help="Pipeline ID to transform"),
+):
+    """Run only the transform step of a pipeline, without fetch or recursion."""
+    try:
+        config = Config.from_file()
+        pipeline = manager.get_pipeline(alias, pipeline_id)
+
+        transform_path = pipeline.path / "transform.toml"
+        if not transform_path.exists():
+            console.print(
+                f"[red]No transform.toml found at {transform_path}[/red]"
+            )
+            raise typer.Exit(1)
+
+        console.print(
+            f"[bold blue]Transforming {pipeline_id} from {alias}[/bold blue]"
+        )
+        TransformRunner(config, transform_path).run()
+        console.print("[bold green]Transform completed successfully![/bold green]")
+
+    except typer.Exit:
+        raise
+    except Exception as e:
+        console.print(f"[bold red]Transform failed:[/bold red] {e}")
         import traceback
 
         traceback.print_exc()
