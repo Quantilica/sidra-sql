@@ -106,10 +106,10 @@ def setup_logging(logger_name: str, log_filepath: Path):
     filehandler.setLevel(logging.INFO)
     logger.addHandler(filehandler)
 
-    # Console log
+    # Console log — only warnings and above; progress output is handled by Rich
     streamhandler = logging.StreamHandler()
     streamhandler.setFormatter(log_formatter)
-    streamhandler.setLevel(logging.DEBUG)
+    streamhandler.setLevel(logging.WARNING)
     logger.addHandler(streamhandler)
 
     return logger

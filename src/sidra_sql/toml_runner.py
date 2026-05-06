@@ -43,12 +43,14 @@ Example TOML
     classifications = {81 = ["allxt"]}
 """
 
+import contextlib
 import logging
 import tomllib
 from pathlib import Path
 from typing import Any, Iterable
 
 import sqlalchemy as sa
+from rich.console import Console
 
 from . import database, models, sidra
 from .config import Config
@@ -74,14 +76,21 @@ class TomlScript:
         toml_path: Path,
         max_workers: int = 4,
         force_metadata: bool = False,
+        console: Console | None = None,
     ):
         self.config = config
         self.toml_path = toml_path
         self.force_metadata = force_metadata
+        self.console = console
         self.storage = Storage.default(config)
         self.fetcher = sidra.Fetcher(
             config, max_workers=max_workers, storage=self.storage
         )
+
+    def _status(self, msg: str):
+        if self.console:
+            return self.console.status(msg)
+        return contextlib.nullcontext()
 
     def get_tabelas(self) -> Iterable[dict[str, Any]]:
         """Read the TOML file and return an expanded list of table request dicts."""
@@ -153,17 +162,25 @@ class TomlScript:
 
     def run(self):
         """Execute the full fetch-and-load pipeline."""
-        logger.info("Starting script execution")
-
         engine = database.get_engine(self.config)
         models.Base.metadata.create_all(engine)
 
         tabelas = list(self.get_tabelas())
+        n = len(tabelas)
 
         with self.fetcher:
-            self.load_metadata(engine, tabelas)
-            data_files = self.download(tabelas)
+            with self._status(f"[cyan]Carregando metadados[/cyan] ({n} {'tabela' if n == 1 else 'tabelas'})..."):
+                self.load_metadata(engine, tabelas)
 
-        database.load_dados(engine, self.storage, data_files)
+            data_files = []
+            for i, tabela in enumerate(tabelas, 1):
+                tid = tabela["sidra_tabela"]
+                with self._status(f"[cyan]Baixando tabela[/cyan] {tid} ({i}/{n})..."):
+                    for result in self.fetcher.download_table(**tabela):
+                        data_files.append(tabela | result)
 
-        logger.info("Script execution finished")
+        if self.console:
+            self.console.print(f"  [dim]→ {len(data_files)} arquivo(s) prontos para carga[/dim]")
+
+        with self._status("[cyan]Carregando no banco de dados[/cyan]..."):
+            database.load_dados(engine, self.storage, data_files)

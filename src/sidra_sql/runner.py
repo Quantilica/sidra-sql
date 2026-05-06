@@ -11,6 +11,7 @@ SQL transform consume the materialized outputs of its children.
 """
 
 import logging
+import time
 from pathlib import Path
 
 from rich.console import Console
@@ -47,10 +48,18 @@ def run_subtree(
 
     if fetch_path.exists():
         if console:
-            console.print(f"[blue]-> Fetch:[/blue] {path.name}")
-        TomlScript(config, fetch_path, force_metadata=force_metadata).run()
+            console.rule(f"[bold cyan]fetch[/bold cyan]  {path.name}", style="cyan dim")
+        t0 = time.monotonic()
+        TomlScript(config, fetch_path, force_metadata=force_metadata, console=console).run()
+        if console:
+            elapsed = time.monotonic() - t0
+            console.print(f"  [green]✓[/green] fetch concluído em [bold]{elapsed:.1f}s[/bold]")
 
     if transform_path.exists():
         if console:
-            console.print(f"[blue]-> Transform:[/blue] {path.name}")
-        TransformRunner(config, transform_path).run()
+            console.rule(f"[bold magenta]transform[/bold magenta]  {path.name}", style="magenta dim")
+        t0 = time.monotonic()
+        TransformRunner(config, transform_path, console=console).run()
+        if console:
+            elapsed = time.monotonic() - t0
+            console.print(f"  [green]✓[/green] transform concluído em [bold]{elapsed:.1f}s[/bold]")
