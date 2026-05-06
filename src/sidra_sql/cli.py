@@ -9,7 +9,9 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from sidra_sql.config import Config
+import configparser
+
+from sidra_sql.config import Config, ConfigError, GLOBAL_CONFIG_PATH, LOCAL_CONFIG_PATH
 from sidra_sql.plugin_manager import PluginManager
 from sidra_sql.runner import run_subtree
 from sidra_sql.scaffold import PipelineAdder, PluginScaffolder
@@ -18,10 +20,109 @@ from sidra_sql.transform_runner import TransformRunner
 
 app = typer.Typer(help="Sidra-SQL CLI - Manage and run data pipelines")
 plugin_app = typer.Typer(help="Manage pipeline plugins")
+config_app = typer.Typer(help="Manage sidra-sql configuration")
 app.add_typer(plugin_app, name="plugin")
+app.add_typer(config_app, name="config")
 
 console = Console()
 manager = PluginManager()
+
+
+def _config_path(use_global: bool) -> Path:
+    return GLOBAL_CONFIG_PATH if use_global else LOCAL_CONFIG_PATH
+
+
+def _read_config(path: Path) -> configparser.ConfigParser:
+    cfg = configparser.ConfigParser()
+    if path.exists():
+        cfg.read(path)
+    return cfg
+
+
+def _write_config(cfg: configparser.ConfigParser, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w") as f:
+        cfg.write(f)
+
+
+@config_app.command("set")
+def config_set(
+    key: str = typer.Argument(..., help="Config key in section.option format (e.g. database.host)"),
+    value: str = typer.Argument(..., help="Value to set"),
+    use_global: bool = typer.Option(False, "--global", help="Write to global config (~/.config/sidra-sql/config.ini)"),
+):
+    """Set a configuration value."""
+    if "." not in key:
+        console.print("[bold red]Error:[/bold red] key must be in 'section.option' format (e.g. database.host)")
+        raise typer.Exit(1)
+
+    section, option = key.split(".", 1)
+    path = _config_path(use_global)
+    cfg = _read_config(path)
+
+    if not cfg.has_section(section):
+        cfg.add_section(section)
+    cfg.set(section, option, value)
+    _write_config(cfg, path)
+
+    scope = "global" if use_global else "local"
+    console.print(f"[green]Set[/green] {key} = {value} ([dim]{scope}[/dim])")
+
+
+@config_app.command("get")
+def config_get(
+    key: str = typer.Argument(..., help="Config key in section.option format (e.g. database.host)"),
+):
+    """Get a configuration value (local overrides global)."""
+    if "." not in key:
+        console.print("[bold red]Error:[/bold red] key must be in 'section.option' format (e.g. database.host)")
+        raise typer.Exit(1)
+
+    section, option = key.split(".", 1)
+    cfg = configparser.ConfigParser()
+    cfg.read([GLOBAL_CONFIG_PATH, LOCAL_CONFIG_PATH])
+
+    if not cfg.has_option(section, option):
+        console.print(f"[yellow]Key not found:[/yellow] {key}")
+        raise typer.Exit(1)
+
+    console.print(cfg.get(section, option))
+
+
+@config_app.command("list")
+def config_list(
+    use_global: bool = typer.Option(False, "--global", help="Show only global config"),
+    local: bool = typer.Option(False, "--local", help="Show only local config"),
+):
+    """List configuration values. Without flags, shows merged view (local overrides global)."""
+    if use_global:
+        paths = [GLOBAL_CONFIG_PATH]
+        label = "Global config"
+    elif local:
+        paths = [LOCAL_CONFIG_PATH]
+        label = "Local config"
+    else:
+        paths = [GLOBAL_CONFIG_PATH, LOCAL_CONFIG_PATH]
+        label = "Merged config (global + local)"
+
+    cfg = configparser.ConfigParser()
+    cfg.read(paths)
+
+    if not cfg.sections():
+        console.print(f"[yellow]No configuration found.[/yellow]")
+        return
+
+    table = Table(title=label, show_header=True, header_style="bold cyan")
+    table.add_column("Section")
+    table.add_column("Option")
+    table.add_column("Value")
+
+    for section in cfg.sections():
+        for option, value in cfg.items(section):
+            display = value if option != "password" else "*" * len(value)
+            table.add_row(section, option, display)
+
+    console.print(table)
 
 
 @app.callback()
@@ -293,6 +394,9 @@ def run_pipeline(
                 "[bold green]Pipeline completed successfully![/bold green]"
             )
 
+    except ConfigError as e:
+        console.print(f"[bold yellow]{e}[/bold yellow]")
+        raise typer.Exit(1)
     except Exception as e:
         console.print(f"[bold red]Pipeline failed:[/bold red] {e}")
         import traceback
@@ -318,6 +422,9 @@ def run_pipeline_path(
         console.print(f"[bold blue]Running pipeline from {resolved}[/bold blue]")
         run_subtree(config, resolved, force_metadata=force_metadata, console=console)
         console.print("[bold green]Pipeline completed successfully![/bold green]")
+    except ConfigError as e:
+        console.print(f"[bold yellow]{e}[/bold yellow]")
+        raise typer.Exit(1)
     except Exception as e:
         console.print(f"[bold red]Pipeline failed:[/bold red] {e}")
         import traceback
@@ -351,6 +458,9 @@ def transform_pipeline(
 
     except typer.Exit:
         raise
+    except ConfigError as e:
+        console.print(f"[bold yellow]{e}[/bold yellow]")
+        raise typer.Exit(1)
     except Exception as e:
         console.print(f"[bold red]Transform failed:[/bold red] {e}")
         import traceback

@@ -6,11 +6,46 @@ import logging
 from logging import handlers
 from pathlib import Path
 
+import platformdirs
+
+APP_NAME = "sidra-sql"
+
+GLOBAL_CONFIG_PATH = Path(platformdirs.user_config_dir(APP_NAME, appauthor=False)) / "config.ini"
+LOCAL_CONFIG_PATH = Path("config.ini")
+
+
+_REQUIRED_KEYS = {
+    "database": ["user", "password", "host", "port", "dbname", "schema", "tablespace", "readonly_role"],
+    "storage": ["data_dir"],
+}
+
+_SETUP_HINT = """\
+No configuration found. Run the following commands to get started:
+
+  sidra-sql config set database.host     <host>
+  sidra-sql config set database.port     5432
+  sidra-sql config set database.user     <user>
+  sidra-sql config set database.password <password>
+  sidra-sql config set database.dbname   <dbname>
+  sidra-sql config set database.schema   <schema>
+  sidra-sql config set database.tablespace    pg_default
+  sidra-sql config set database.readonly_role <role>
+  sidra-sql config set storage.data_dir  <path>
+
+Add --global to write to the user-level config (~/.config/sidra-sql/config.ini).\
+"""
+
+
+class ConfigError(Exception):
+    pass
+
 
 class Config:
     def __init__(self):
         self.config = configparser.ConfigParser()
-        self.config.read(Path("config.ini"))
+        self.config.read([GLOBAL_CONFIG_PATH, LOCAL_CONFIG_PATH])
+
+        self._validate()
 
         self.data_dir = Path(self.config["storage"]["data_dir"])
 
@@ -23,6 +58,19 @@ class Config:
         self.db_schema = self.config["database"]["schema"]
         self.db_tablespace = self.config["database"]["tablespace"]
         self.db_readonly_role = self.config["database"]["readonly_role"]
+
+    def _validate(self):
+        missing = []
+        for section, keys in _REQUIRED_KEYS.items():
+            for key in keys:
+                if not self.config.has_option(section, key):
+                    missing.append(f"{section}.{key}")
+
+        if missing:
+            if len(missing) == sum(len(v) for v in _REQUIRED_KEYS.values()):
+                raise ConfigError(_SETUP_HINT)
+            lines = "\n".join(f"  sidra-sql config set {k} <value>" for k in missing)
+            raise ConfigError(f"Missing configuration keys:\n\n{lines}")
 
     def __str__(self):
         return (
