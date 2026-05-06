@@ -43,7 +43,6 @@ Example TOML
     classifications = {81 = ["allxt"]}
 """
 
-import contextlib
 import logging
 import tomllib
 from pathlib import Path
@@ -51,12 +50,32 @@ from typing import Any, Iterable
 
 import sqlalchemy as sa
 from rich.console import Console
+from rich.progress import (
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    TimeElapsedColumn,
+)
 
 from . import database, models, sidra
 from .config import Config
 from .storage import Storage
 
 logger = logging.getLogger(__name__)
+
+
+def _make_progress(console: Console | None) -> Progress:
+    return Progress(
+        SpinnerColumn(finished_text="[green]✓[/green]"),
+        TextColumn("[progress.description]{task.description}", table_column=None),
+        BarColumn(bar_width=28),
+        TextColumn("[progress.percentage]{task.percentage:>3.0f}%", style="dim"),
+        TimeElapsedColumn(),
+        console=console,
+        transient=False,
+        disable=console is None,
+    )
 
 
 class TomlScript:
@@ -86,11 +105,6 @@ class TomlScript:
         self.fetcher = sidra.Fetcher(
             config, max_workers=max_workers, storage=self.storage
         )
-
-    def _status(self, msg: str):
-        if self.console:
-            return self.console.status(msg)
-        return contextlib.nullcontext()
 
     def get_tabelas(self) -> Iterable[dict[str, Any]]:
         """Read the TOML file and return an expanded list of table request dicts."""
@@ -167,20 +181,24 @@ class TomlScript:
 
         tabelas = list(self.get_tabelas())
         n = len(tabelas)
+        s = "tabela" if n == 1 else "tabelas"
 
-        with self.fetcher:
-            with self._status(f"[cyan]Carregando metadados[/cyan] ({n} {'tabela' if n == 1 else 'tabelas'})..."):
+        with _make_progress(self.console) as progress:
+            meta_task = progress.add_task(f"Metadados ({n} {s})", total=None)
+            with self.fetcher:
                 self.load_metadata(engine, tabelas)
+                progress.update(meta_task, total=1, completed=1, description=f"Metadados ({n} {s})")
 
-            data_files = []
-            for i, tabela in enumerate(tabelas, 1):
-                tid = tabela["sidra_tabela"]
-                with self._status(f"[cyan]Baixando tabela[/cyan] {tid} ({i}/{n})..."):
+                dl_task = progress.add_task(f"Baixando tabela...", total=n)
+                data_files = []
+                for tabela in tabelas:
+                    tid = tabela["sidra_tabela"]
+                    progress.update(dl_task, description=f"Baixando tabela [bold]{tid}[/bold]")
                     for result in self.fetcher.download_table(**tabela):
                         data_files.append(tabela | result)
+                    progress.advance(dl_task)
+                progress.update(dl_task, description=f"Download concluído ({len(data_files)} arquivos)")
 
-        if self.console:
-            self.console.print(f"  [dim]→ {len(data_files)} arquivo(s) prontos para carga[/dim]")
-
-        with self._status("[cyan]Carregando no banco de dados[/cyan]..."):
+            db_task = progress.add_task("Carregando no banco de dados", total=None)
             database.load_dados(engine, self.storage, data_files)
+            progress.update(db_task, total=1, completed=1, description="Carregamento concluído")

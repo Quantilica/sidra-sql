@@ -36,12 +36,12 @@ The SQL query uses unqualified table names (``dados``, ``dimensao``,
 ``search_path`` set by ``get_engine`` from ``config.ini``.
 """
 
-import contextlib
 import logging
 import tomllib
 from pathlib import Path
 
 from rich.console import Console
+from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
 from . import database
 from .config import Config
@@ -56,11 +56,6 @@ class TransformRunner:
         self.config = config
         self.toml_path = toml_path
         self.console = console
-
-    def _status(self, msg: str):
-        if self.console:
-            return self.console.status(msg)
-        return contextlib.nullcontext()
 
     def run(self):
         with open(self.toml_path, "rb") as f:
@@ -78,9 +73,19 @@ class TransformRunner:
 
         engine = database.get_engine(self.config)
         qualified = f'"{schema}"."{name}"'
-
         strategy_label = {"replace": "tabela", "view": "view"}.get(strategy, strategy)
-        with self._status(f"[cyan]Executando transform[/cyan] {qualified} [{strategy_label}]..."):
+
+        with Progress(
+            SpinnerColumn(finished_text="[green]✓[/green]"),
+            TextColumn("[progress.description]{task.description}"),
+            TimeElapsedColumn(),
+            console=self.console,
+            transient=False,
+            disable=self.console is None,
+        ) as progress:
+            task = progress.add_task(
+                f"{qualified} [dim][{strategy_label}][/dim]", total=None
+            )
             with engine.begin() as conn:
                 conn.exec_driver_sql(f'CREATE SCHEMA IF NOT EXISTS "{schema}"')
 
@@ -109,3 +114,4 @@ class TransformRunner:
                     raise ValueError(
                         f"Unknown strategy {strategy!r} in {self.toml_path}"
                     )
+            progress.update(task, total=1, completed=1)
