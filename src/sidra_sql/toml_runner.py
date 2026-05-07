@@ -189,14 +189,19 @@ class TomlScript:
                 self.load_metadata(engine, tabelas)
                 progress.update(meta_task, total=1, completed=1, description=f"Metadados ({n} {s})")
 
-                dl_task = progress.add_task(f"Baixando tabela...", total=n)
+                total_files = sum(
+                    len(self.storage.read_metadata(t["sidra_tabela"]).periodos)
+                    for t in tabelas
+                )
+                dl_task = progress.add_task("Baixando arquivos...", total=total_files)
                 data_files = []
                 for tabela in tabelas:
                     tid = tabela["sidra_tabela"]
                     progress.update(dl_task, description=f"Baixando tabela [bold]{tid}[/bold]")
-                    for result in self.fetcher.download_table(**tabela):
+                    for result in self.fetcher.download_table(
+                        **tabela, on_file_done=lambda: progress.advance(dl_task)
+                    ):
                         data_files.append(tabela | result)
-                    progress.advance(dl_task)
                 progress.update(dl_task, description=f"Download concluído ({len(data_files)} arquivos)")
 
             db_task = progress.add_task("Carregando no banco de dados", total=None)

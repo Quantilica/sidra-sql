@@ -17,9 +17,9 @@ Public API
 
 import logging
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Generator
+from typing import Any, Callable, Generator
 
 import httpx
 from sidra_fetcher.agregados import Agregado, Classificacao
@@ -81,6 +81,7 @@ class Fetcher:
         territories: dict[str, list[str]],
         variables: list[str] | None = None,
         classifications: dict[str, list[str]] | None = None,
+        on_file_done: Callable[[], None] | None = None,
     ) -> list[dict[str, Any]]:
         """Download all periods of a SIDRA table and save them to disk.
 
@@ -139,30 +140,22 @@ class Fetcher:
             )
             period_params.append((parameter, periodo.modificacao.isoformat()))
 
-        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            futures = [
-                (
-                    executor.submit(
-                        self._download_period, parameter, modification
-                    ),
-                    modification,
-                )
-                for parameter, modification in period_params
-            ]
-
         results: list[dict[str, Any]] = []
         errors: list[Exception] = []
-        for f, modification in futures:
-            try:
-                results.append(
-                    {
-                        "filepath": f.result(),
-                        "modificacao": modification,
-                    }
-                )
-            except Exception as e:
-                logger.error("Period download failed: %s", e)
-                errors.append(e)
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            future_to_mod = {
+                executor.submit(self._download_period, parameter, modification): modification
+                for parameter, modification in period_params
+            }
+            for future in as_completed(future_to_mod):
+                modification = future_to_mod[future]
+                try:
+                    results.append({"filepath": future.result(), "modificacao": modification})
+                except Exception as e:
+                    logger.error("Period download failed: %s", e)
+                    errors.append(e)
+                if on_file_done is not None:
+                    on_file_done()
         if errors:
             raise errors[0]
         return results
