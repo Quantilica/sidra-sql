@@ -1,6 +1,6 @@
 [project]
 name = "sidra-sql"
-version = "1.1.0"
+version = "1.2.0"
 description = "Tabelas de dados agregados do IBGE"
 readme = "README.md"
 authors = [
