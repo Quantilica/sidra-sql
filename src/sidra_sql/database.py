@@ -556,6 +556,21 @@ def _stream_staging(
     )
 
 
+def get_loaded_filenames(
+    engine: sa.Engine, filenames: set[str]
+) -> set[str]:
+    """Return the subset of filenames already recorded in arquivo_carregado."""
+    if not filenames:
+        return set()
+    with engine.connect() as conn:
+        result = conn.execute(
+            sa.select(models.ArquivoCarregado.arquivo).where(
+                models.ArquivoCarregado.arquivo.in_(filenames)
+            )
+        )
+        return {row.arquivo for row in result}
+
+
 def load_dados(
     engine: sa.Engine,
     storage: Storage,
@@ -658,6 +673,16 @@ def load_dados(
                 periodo_by_codigo,
                 on_file_done=_file_done,
             )
+            stmt = pg_insert(models.ArquivoCarregado.__table__).values(
+                [
+                    {
+                        "arquivo": f["filepath"].name,
+                        "tabela_sidra_id": tabela_sidra_id,
+                    }
+                    for f in table_files
+                ]
+            )
+            conn.execute(stmt.on_conflict_do_nothing())
             conn.commit()
 
         if on_table_done is not None:

@@ -349,6 +349,19 @@ class TomlScript:
                     global_task, description="Download concluído ✓"
                 )
 
+        loaded = database.get_loaded_filenames(
+            engine, {f["filepath"].name for f in data_files}
+        )
+        data_files = [
+            f for f in data_files if f["filepath"].name not in loaded
+        ]
+        if not data_files:
+            if self.console is not None:
+                self.console.print(
+                    "[green]Todos os arquivos já foram carregados.[/green]"
+                )
+            return
+
         with _make_download_progress(self.console) as progress:
             db_files_per_table: dict[str, int] = {}
             for d in data_files:

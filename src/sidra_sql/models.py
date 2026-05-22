@@ -6,6 +6,7 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     Date,
+    DateTime,
     ForeignKey,
     Identity,
     Integer,
@@ -154,6 +155,20 @@ class Dimensao(Base):
     d9c: Mapped[str] = mapped_column(Text, nullable=True)
     # D9N = CATEGORIA NOME da Classificação 6
     d9n: Mapped[str] = mapped_column(Text, nullable=True)
+
+
+class ArquivoCarregado(Base):
+    __tablename__ = "arquivo_carregado"
+
+    arquivo: Mapped[str] = mapped_column(Text, primary_key=True)
+    tabela_sidra_id: Mapped[str] = mapped_column(
+        ForeignKey("tabela_sidra.id"), nullable=False, index=True
+    )
+    carregado_em: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
 
 
 class Dados(Base):
