@@ -32,6 +32,7 @@ Este projeto resolve exatamente esse problema: um pipeline ETL completo, com con
 | **Retry com backoff** | Até 5 tentativas com delay exponencial (5s, 10s, 20s…) em falhas de rede |
 | **Carga em massa** | Protocolo COPY nativo do PostgreSQL via `psycopg3` para inserção em alta performance |
 | **Upsert idempotente** | `ON CONFLICT DO NOTHING/UPDATE` em todas as operações — re-execuções são seguras |
+| **Skip inteligente de carga** | Tabela `arquivo_carregado` rastreia arquivos já carregados; re-execuções pulam o trabalho sem repetir I/O |
 | **Normalização completa** | Localidades, dimensões (variável × classificação) e fatos em tabelas separadas |
 | **Suporte a 6 classificações** | Produto cartesiano de até 6 níveis de classificação por variável |
 | **Metadados persistidos** | Agregados, periodicidade e metadados JSON salvos no banco para consulta |
@@ -280,12 +281,20 @@ sidra-sql run pam lavouras_temporarias
 # Executa todos os pipelines de um plugin
 sidra-sql run pam
 
-# Executa forçando a atualização de metadados
+# Força a atualização de metadados (re-baixa metadados da API mesmo com cache local)
 sidra-sql run pam lavouras_temporarias --force-metadata
+
+# Força o recarregamento de todos os arquivos no banco, ignorando o registro de arquivos já carregados
+sidra-sql run pam lavouras_temporarias --force-load
+
+# Combinação: metadados frescos + recarga completa
+sidra-sql run pam lavouras_temporarias --force-metadata --force-load
 
 # Executar apenas a etapa de transformação (sem fetch nem recursão)
 sidra-sql transform pam lavouras_temporarias
 ```
+
+> **`--force-load`** ignora a tabela `arquivo_carregado` e reprocessa todos os arquivos presentes em disco. Útil quando o schema do banco foi alterado ou quando é necessário reconstruir os dados a partir dos arquivos JSON locais já baixados. Não re-baixa arquivos da API — para isso use `--force-metadata` em conjunto.
 
 ---
 

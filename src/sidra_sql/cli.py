@@ -417,6 +417,11 @@ def run_pipeline(
     force_metadata: bool = typer.Option(
         False, "--force-metadata", help="Force refresh metadata"
     ),
+    force_load: bool = typer.Option(
+        False,
+        "--force-load",
+        help="Recarregar arquivos já registrados em arquivo_carregado",
+    ),
 ):
     """Run pipeline(s) from an installed plugin. Omit pipeline_id to run all."""
     try:
@@ -437,6 +442,7 @@ def run_pipeline(
                     config,
                     p.path,
                     force_metadata=force_metadata,
+                    force_load=force_load,
                     console=console,
                 )
             console.print(
@@ -450,6 +456,7 @@ def run_pipeline(
                 config,
                 pipeline.path,
                 force_metadata=force_metadata,
+                force_load=force_load,
                 console=console,
             )
 
@@ -473,6 +480,11 @@ def run_pipeline_path(
     force_metadata: bool = typer.Option(
         False, "--force-metadata", help="Force refresh metadata"
     ),
+    force_load: bool = typer.Option(
+        False,
+        "--force-load",
+        help="Recarregar arquivos já registrados em arquivo_carregado",
+    ),
 ):
     """Run a pipeline directly from a directory path, without a registered plugin."""
     try:
@@ -486,7 +498,11 @@ def run_pipeline_path(
         config = Config()
         _print_header()
         run_subtree(
-            config, resolved, force_metadata=force_metadata, console=console
+            config,
+            resolved,
+            force_metadata=force_metadata,
+            force_load=force_load,
+            console=console,
         )
         console.print(
             "[bold green]Pipeline completed successfully![/bold green]"

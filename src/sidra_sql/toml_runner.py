@@ -144,11 +144,13 @@ class TomlScript:
         toml_path: Path,
         max_workers: int = 4,
         force_metadata: bool = False,
+        force_load: bool = False,
         console: Console | None = None,
     ):
         self.config = config
         self.toml_path = toml_path
         self.force_metadata = force_metadata
+        self.force_load = force_load
         self.console = console
         self.storage = Storage.default(config)
         self.fetcher = sidra.Fetcher(
@@ -349,12 +351,13 @@ class TomlScript:
                     global_task, description="Download concluído ✓"
                 )
 
-        loaded = database.get_loaded_filenames(
-            engine, {f["filepath"].name for f in data_files}
-        )
-        data_files = [
-            f for f in data_files if f["filepath"].name not in loaded
-        ]
+        if not self.force_load:
+            loaded = database.get_loaded_filenames(
+                engine, {f["filepath"].name for f in data_files}
+            )
+            data_files = [
+                f for f in data_files if f["filepath"].name not in loaded
+            ]
         if not data_files:
             if self.console is not None:
                 self.console.print(

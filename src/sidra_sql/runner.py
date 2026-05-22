@@ -30,6 +30,7 @@ def run_subtree(
     config: Config,
     path: Path,
     force_metadata: bool = False,
+    force_load: bool = False,
     console: Console | None = None,
 ):
     """Run all sub-pipelines under ``path`` post-order, then ``path`` itself."""
@@ -38,7 +39,7 @@ def run_subtree(
 
     for child in sorted(path.iterdir()):
         if _is_pipeline_dir(child):
-            run_subtree(config, child, force_metadata, console)
+            run_subtree(config, child, force_metadata, force_load, console)
 
     fetch_path = path / "fetch.toml"
     transform_path = path / "transform.toml"
@@ -50,7 +51,11 @@ def run_subtree(
             )
         t0 = time.monotonic()
         TomlScript(
-            config, fetch_path, force_metadata=force_metadata, console=console
+            config,
+            fetch_path,
+            force_metadata=force_metadata,
+            force_load=force_load,
+            console=console,
         ).run()
         if console:
             elapsed = time.monotonic() - t0
