@@ -19,8 +19,6 @@ host = db.example
 port = 5432
 dbname = sample_db
 schema = public
-tablespace = pg_default
-readonly_role = readonly
 """
 
         cwd = os.getcwd()
@@ -36,8 +34,6 @@ readonly_role = readonly
             self.assertEqual(cfg.db_port, "5432")
             self.assertEqual(cfg.db_name, "sample_db")
             self.assertEqual(cfg.db_schema, "public")
-            self.assertEqual(cfg.db_tablespace, "pg_default")
-            self.assertEqual(cfg.db_readonly_role, "readonly")
 
             s = str(cfg)
             self.assertIn("db_user: alice", s)

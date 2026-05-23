@@ -23,8 +23,6 @@ _REQUIRED_KEYS = {
         "port",
         "dbname",
         "schema",
-        "tablespace",
-        "readonly_role",
     ],
     "storage": ["data_dir"],
 }
@@ -38,8 +36,6 @@ No configuration found. Run the following commands to get started:
   sidra-sql config set database.password <password>
   sidra-sql config set database.dbname   <dbname>
   sidra-sql config set database.schema   <schema>
-  sidra-sql config set database.tablespace    pg_default
-  sidra-sql config set database.readonly_role <role>
   sidra-sql config set storage.data_dir  <path>
 
 Add --global to write to the user-level config (~/.config/sidra-sql/config.ini).\
@@ -66,8 +62,6 @@ class Config:
 
         self.db_name = self.config["database"]["dbname"]
         self.db_schema = self.config["database"]["schema"]
-        self.db_tablespace = self.config["database"]["tablespace"]
-        self.db_readonly_role = self.config["database"]["readonly_role"]
 
     def _validate(self):
         missing = []
@@ -92,8 +86,6 @@ class Config:
             f"db_port: {self.db_port}\n"
             f"db_name: {self.db_name}\n"
             f"db_schema: {self.db_schema}\n"
-            f"db_tablespace: {self.db_tablespace}\n"
-            f"db_readonly_role: {self.db_readonly_role}\n"
         )
 
 

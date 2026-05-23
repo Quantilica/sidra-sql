@@ -206,8 +206,6 @@ host       = localhost
 port       = 5432
 dbname     = dados
 schema     = ibge_sidra
-tablespace = pg_default
-readonly_role = readonly_role
 ```
 
 > **Nota:** O schema `ibge_sidra` será criado automaticamente na primeira execução, incluindo todas as tabelas, índices e constraints.
