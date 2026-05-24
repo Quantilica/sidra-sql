@@ -259,6 +259,10 @@ class TomlScript:
     def run(self):
         """Execute the full fetch-and-load pipeline."""
         engine = database.get_engine(self.config)
+        with engine.begin() as conn:
+            conn.exec_driver_sql(
+                f'CREATE SCHEMA IF NOT EXISTS "{self.config.db_schema}"'
+            )
         models.Base.metadata.create_all(engine)
         try:
             self._run(engine)
