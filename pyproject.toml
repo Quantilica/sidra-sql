@@ -9,7 +9,7 @@ authors = [
 license = { file = "LICENSE" }
 requires-python = ">=3.12"
 dependencies = [
-    "sidra-fetcher @ git+ssh://git@github.com/Quantilica/sidra-fetcher.git@v0.7.0#egg=sidra-fetcher",
+    "sidra-fetcher @ git+https://github.com/Quantilica/sidra-fetcher.git@v0.7.0",
     "psycopg[binary]>=3.2.9",
     "sqlalchemy>=2.0.41",
     "orjson>=3.11.7",
