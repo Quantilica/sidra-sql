@@ -21,9 +21,7 @@ tabela_sidra = "1"
 """
 
 
-def _setup_plugin(
-    tmp: Path, transform_toml: str, sql_files: dict[str, str]
-) -> Path:
+def _setup_plugin(tmp: Path, transform_toml: str, sql_files: dict[str, str]) -> Path:
     plugin = tmp / "plugin"
     plugin.mkdir()
     (plugin / "manifest.toml").write_text(MANIFEST, encoding="utf-8")
@@ -128,9 +126,7 @@ sql = "t.sql"
         plugin = _setup_plugin(self.tmp, toml, {"t.sql": "SELECT 1"})
         report = PluginValidator(plugin).validate()
         errs = _errors(_section(report, "p1"))
-        self.assertTrue(
-            any("strategy" in e and "merge" in e for e in errs), errs
-        )
+        self.assertTrue(any("strategy" in e and "merge" in e for e in errs), errs)
 
     def test_duplicate_output_errors(self):
         toml = """

@@ -68,9 +68,7 @@ class Fetcher:
         storage: Storage | None = None,
     ):
         self.sidra_client = SidraClient(timeout=600)
-        self.storage = (
-            storage if storage is not None else Storage.default(config)
-        )
+        self.storage = storage if storage is not None else Storage.default(config)
         self.max_workers = max_workers
         self._cancel = threading.Event()
 
@@ -108,18 +106,14 @@ class Fetcher:
         if metadata_path.exists():
             metadados = self.storage.read_metadata(tabela_sidra)
         else:
-            metadados = self.sidra_client.get_agregado_metadados(
-                int(tabela_sidra)
-            )
+            metadados = self.sidra_client.get_agregado_metadados(int(tabela_sidra))
 
         if classifications is None:
             classifications = {str(c.id): [] for c in metadados.classificacoes}
 
         periodos = getattr(
             metadados, "periodos", None
-        ) or self.sidra_client.get_agregado_periodos(
-            agregado_id=int(tabela_sidra)
-        )
+        ) or self.sidra_client.get_agregado_periodos(agregado_id=int(tabela_sidra))
 
         period_params: list[tuple[Parametro, str]] = []
         for periodo in periodos:
@@ -163,9 +157,10 @@ class Fetcher:
         executor = ThreadPoolExecutor(max_workers=self.max_workers)
         try:
             future_to_meta = {
-                executor.submit(
-                    self._download_period, parameter, modification
-                ): (key, modification)
+                executor.submit(self._download_period, parameter, modification): (
+                    key,
+                    modification,
+                )
                 for key, parameter, modification in plan
             }
             for future in as_completed(future_to_meta):
@@ -251,9 +246,7 @@ class Fetcher:
             localidades.extend(f.result())
 
         agregado.localidades = localidades
-        agregado.periodos = self.sidra_client.get_agregado_periodos(
-            int(tabela_sidra)
-        )
+        agregado.periodos = self.sidra_client.get_agregado_periodos(int(tabela_sidra))
         return agregado
 
     def _download_period(

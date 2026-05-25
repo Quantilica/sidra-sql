@@ -96,13 +96,9 @@ class _MainOnlyTimeRemainingColumn(TimeRemainingColumn):
 def _make_progress(console: Console | None) -> Progress:
     return Progress(
         SpinnerColumn(finished_text="[green]✓[/green]"),
-        TextColumn(
-            "[progress.description]{task.description}", table_column=None
-        ),
+        TextColumn("[progress.description]{task.description}", table_column=None),
         BarColumn(bar_width=28),
-        TextColumn(
-            "[progress.percentage]{task.percentage:>3.0f}%", style="grey70"
-        ),
+        TextColumn("[progress.percentage]{task.percentage:>3.0f}%", style="grey70"),
         _MainOnlyTimeElapsedColumn(),
         _MainOnlyTimeRemainingColumn(),
         console=console,
@@ -114,9 +110,7 @@ def _make_progress(console: Console | None) -> Progress:
 def _make_download_progress(console: Console | None) -> Progress:
     return Progress(
         SpinnerColumn(finished_text="[green]✓[/green]"),
-        TextColumn(
-            "[progress.description]{task.description}", table_column=None
-        ),
+        TextColumn("[progress.description]{task.description}", table_column=None),
         BarColumn(bar_width=28),
         MofNCompleteColumn(),
         _MainOnlyTimeElapsedColumn(),
@@ -179,17 +173,12 @@ class TomlScript:
                 else:
                     unnest_ids = {str(u) for u in unnest}
                     to_unnest = [
-                        c
-                        for c in metadados.classificacoes
-                        if str(c.id) in unnest_ids
+                        c for c in metadados.classificacoes if str(c.id) in unnest_ids
                     ]
                     static_cls = entry.pop("classifications", {})
                     for c in metadados.classificacoes:
                         cls_id = str(c.id)
-                        if (
-                            cls_id not in unnest_ids
-                            and cls_id not in static_cls
-                        ):
+                        if cls_id not in unnest_ids and cls_id not in static_cls:
                             static_cls[cls_id] = ["all"]
                 for cls_combo in sidra.unnest_classificacoes(to_unnest):
                     result.append(
@@ -207,9 +196,7 @@ class TomlScript:
 
         return result
 
-    def download(
-        self, tabelas: Iterable[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
+    def download(self, tabelas: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
         """Download all tables and return a list of data-file descriptors.
 
         Builds a flat plan across every requested table and submits it
@@ -222,14 +209,11 @@ class TomlScript:
                 plan.append((tabela, parameter, modification))
         results = self.fetcher.download_periods(plan)
         return [
-            r["key"]
-            | {"filepath": r["filepath"], "modificacao": r["modificacao"]}
+            r["key"] | {"filepath": r["filepath"], "modificacao": r["modificacao"]}
             for r in results
         ]
 
-    def load_metadata(
-        self, engine: sa.Engine, tabelas: Iterable[dict[str, Any]]
-    ):
+    def load_metadata(self, engine: sa.Engine, tabelas: Iterable[dict[str, Any]]):
         """Fetch and persist metadata for all unique SIDRA tables."""
         seen: set[str] = set()
         for tabela in tabelas:
@@ -238,22 +222,16 @@ class TomlScript:
                 continue
             seen.add(tabela_sidra_id)
 
-            metadata_filepath = self.storage.get_metadata_filepath(
-                tabela_sidra_id
-            )
+            metadata_filepath = self.storage.get_metadata_filepath(tabela_sidra_id)
             if metadata_filepath.exists() and not self.force_metadata:
-                logger.info(
-                    "Reading cached metadata for table %s", tabela_sidra_id
-                )
+                logger.info("Reading cached metadata for table %s", tabela_sidra_id)
                 agregado = self.storage.read_metadata(tabela_sidra_id)
             else:
                 logger.info("Fetching metadata for table %s", tabela_sidra_id)
                 agregado = self.fetcher.fetch_metadata(tabela_sidra_id)
                 self.storage.write_metadata(agregado)
 
-            logger.info(
-                "Saving metadata to database for table %s", tabela_sidra_id
-            )
+            logger.info("Saving metadata to database for table %s", tabela_sidra_id)
             database.save_agregado(engine, agregado)
 
     def run(self):
@@ -293,9 +271,7 @@ class TomlScript:
 
             plan: list[tuple[dict[str, Any], Any, str]] = []
             for tabela in tabelas:
-                for parameter, modification in self.fetcher.plan_periods(
-                    **tabela
-                ):
+                for parameter, modification in self.fetcher.plan_periods(**tabela):
                     plan.append((tabela, parameter, modification))
 
             n_plan = len(plan)
@@ -322,9 +298,7 @@ class TomlScript:
                 files_per_table[sid] = files_per_table.get(sid, 0) + 1
 
             with _make_download_progress(self.console) as progress:
-                global_task = progress.add_task(
-                    "Download", total=n_plan, main=True
-                )
+                global_task = progress.add_task("Download", total=n_plan, main=True)
                 task_by_table: dict[str, TaskID] = {}
                 if len(files_per_table) > 1:
                     for sid, count in files_per_table.items():
@@ -338,9 +312,7 @@ class TomlScript:
                         progress.advance(sub)
                     progress.advance(global_task)
 
-                results = self.fetcher.download_periods(
-                    plan, on_file_done=_on_done
-                )
+                results = self.fetcher.download_periods(plan, on_file_done=_on_done)
                 data_files = [
                     r["key"]
                     | {
@@ -351,17 +323,13 @@ class TomlScript:
                 ]
                 for sid, task_id in task_by_table.items():
                     progress.update(task_id, description=f"Tabela {sid} ✓")
-                progress.update(
-                    global_task, description="Download concluído ✓"
-                )
+                progress.update(global_task, description="Download concluído ✓")
 
         if not self.force_load:
             loaded = database.get_loaded_filenames(
                 engine, {f["filepath"].name for f in data_files}
             )
-            data_files = [
-                f for f in data_files if f["filepath"].name not in loaded
-            ]
+            data_files = [f for f in data_files if f["filepath"].name not in loaded]
         if not data_files:
             if self.console is not None:
                 self.console.print(
@@ -403,6 +371,4 @@ class TomlScript:
                 on_file_done=_on_db_file_done,
                 on_table_done=_on_db_table_done,
             )
-            progress.update(
-                db_global_task, description="Carregamento concluído ✓"
-            )
+            progress.update(db_global_task, description="Carregamento concluído ✓")

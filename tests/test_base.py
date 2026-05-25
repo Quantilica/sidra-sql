@@ -69,12 +69,8 @@ class TestTomlScript(unittest.TestCase):
         cached_path = mock.MagicMock()
         cached_path.exists.return_value = True
         fake_agregado = mock.MagicMock()
-        script.storage.get_metadata_filepath = mock.MagicMock(
-            return_value=cached_path
-        )
-        script.storage.read_metadata = mock.MagicMock(
-            return_value=fake_agregado
-        )
+        script.storage.get_metadata_filepath = mock.MagicMock(return_value=cached_path)
+        script.storage.read_metadata = mock.MagicMock(return_value=fake_agregado)
         script.fetcher.fetch_metadata = mock.MagicMock()
 
         with mock.patch("sidra_sql.database.save_agregado") as save_mock:
@@ -92,12 +88,8 @@ class TestTomlScript(unittest.TestCase):
         missing_path = mock.MagicMock()
         missing_path.exists.return_value = False
         fake_agregado = mock.MagicMock()
-        script.storage.get_metadata_filepath = mock.MagicMock(
-            return_value=missing_path
-        )
-        script.fetcher.fetch_metadata = mock.MagicMock(
-            return_value=fake_agregado
-        )
+        script.storage.get_metadata_filepath = mock.MagicMock(return_value=missing_path)
+        script.fetcher.fetch_metadata = mock.MagicMock(return_value=fake_agregado)
         script.storage.write_metadata = mock.MagicMock()
 
         with mock.patch("sidra_sql.database.save_agregado") as save_mock:
@@ -114,12 +106,8 @@ class TestTomlScript(unittest.TestCase):
 
         cached_path = mock.MagicMock()
         cached_path.exists.return_value = True
-        script.storage.get_metadata_filepath = mock.MagicMock(
-            return_value=cached_path
-        )
-        script.storage.read_metadata = mock.MagicMock(
-            return_value=mock.MagicMock()
-        )
+        script.storage.get_metadata_filepath = mock.MagicMock(return_value=cached_path)
+        script.storage.read_metadata = mock.MagicMock(return_value=mock.MagicMock())
 
         with mock.patch("sidra_sql.database.save_agregado") as save_mock:
             script.load_metadata(
@@ -152,9 +140,7 @@ class TestTomlScript(unittest.TestCase):
             classificacoes = [_Cls(87, [10, 20]), _Cls(99, [5])]
 
         script.fetcher.sidra_client = mock.MagicMock()
-        script.fetcher.sidra_client.get_agregado_metadados.return_value = (
-            _Meta()
-        )
+        script.fetcher.sidra_client.get_agregado_metadados.return_value = _Meta()
 
         result = list(script.get_tabelas())
 

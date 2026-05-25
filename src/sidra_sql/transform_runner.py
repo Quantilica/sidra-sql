@@ -63,9 +63,7 @@ logger = logging.getLogger(__name__)
 class TransformRunner:
     """Run SQL transformations declared in a ``transform.toml`` file."""
 
-    def __init__(
-        self, config: Config, toml_path: Path, console: Console | None = None
-    ):
+    def __init__(self, config: Config, toml_path: Path, console: Console | None = None):
         self.config = config
         self.toml_path = toml_path
         self.console = console
@@ -96,9 +94,7 @@ class TransformRunner:
                 self._materialize(engine, entry, progress)
 
     def _materialize(self, engine, entry: dict, progress: Progress) -> None:
-        missing = [
-            f for f in ("name", "schema", "strategy", "sql") if f not in entry
-        ]
+        missing = [f for f in ("name", "schema", "strategy", "sql") if f not in entry]
         if missing:
             raise ValueError(
                 f"{self.toml_path}: [[table]] sem campo(s) obrigatório(s): "
@@ -121,9 +117,7 @@ class TransformRunner:
         query = sql_path.read_text(encoding="utf-8").strip().replace("%", "%%")
 
         qualified = f'"{schema}"."{name}"'
-        strategy_label = {"replace": "tabela", "view": "view"}.get(
-            strategy, strategy
-        )
+        strategy_label = {"replace": "tabela", "view": "view"}.get(strategy, strategy)
         task = progress.add_task(
             f"{qualified} [dim][{strategy_label}][/dim]", total=None
         )
@@ -132,9 +126,7 @@ class TransformRunner:
             conn.exec_driver_sql(f'CREATE SCHEMA IF NOT EXISTS "{schema}"')
 
             if strategy == "view":
-                conn.exec_driver_sql(
-                    f"CREATE OR REPLACE VIEW {qualified} AS\n{query}"
-                )
+                conn.exec_driver_sql(f"CREATE OR REPLACE VIEW {qualified} AS\n{query}")
             elif strategy == "replace":
                 conn.exec_driver_sql(f"DROP TABLE IF EXISTS {qualified}")
                 conn.exec_driver_sql(f"CREATE TABLE {qualified} AS\n{query}")

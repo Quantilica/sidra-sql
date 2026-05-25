@@ -33,12 +33,8 @@ class PluginManifest:
 
 class PluginRegistry:
     def __init__(self):
-        self.config_dir = Path(
-            platformdirs.user_config_dir(APP_NAME, appauthor=False)
-        )
-        self.data_dir = Path(
-            platformdirs.user_data_dir(APP_NAME, appauthor=False)
-        )
+        self.config_dir = Path(platformdirs.user_config_dir(APP_NAME, appauthor=False))
+        self.data_dir = Path(platformdirs.user_data_dir(APP_NAME, appauthor=False))
         self.plugins_dir = self.data_dir / "plugins"
         self.registry_file = self.config_dir / "registry.json"
 
@@ -96,9 +92,7 @@ class PluginManager:
 
         plugin_path = self.registry.get_plugin_path(alias)
         if plugin_path.exists():
-            raise ValueError(
-                f"Plugin with alias '{alias}' is already installed."
-            )
+            raise ValueError(f"Plugin with alias '{alias}' is already installed.")
 
         logger.info("Cloning %s into %s", url, plugin_path)
         subprocess.run(["git", "clone", url, str(plugin_path)], check=True)
@@ -193,9 +187,7 @@ class PluginManager:
                 for p in manifest.pipelines:
                     all_pipelines.append((alias, manifest.name, p))
             except Exception as e:
-                logger.warning(
-                    "Could not load manifest for plugin '%s': %s", alias, e
-                )
+                logger.warning("Could not load manifest for plugin '%s': %s", alias, e)
 
         return all_pipelines
 
@@ -204,6 +196,4 @@ class PluginManager:
         for p in manifest.pipelines:
             if p.id == pipeline_id:
                 return p
-        raise ValueError(
-            f"Pipeline '{pipeline_id}' not found in plugin '{alias}'"
-        )
+        raise ValueError(f"Pipeline '{pipeline_id}' not found in plugin '{alias}'")

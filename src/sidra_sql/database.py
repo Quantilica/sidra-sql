@@ -211,9 +211,7 @@ def _dimensao_lookup_query(
     )
     if keys is not None:
         # key format: (mc, d2c, d4c, d5c, d6c, d7c, d8c, d9c) — d2c is at index 1
-        d2c_keys = list(
-            {k[1] for k in keys if k is not None and k[1] is not None}
-        )
+        d2c_keys = list({k[1] for k in keys if k is not None and k[1] is not None})
         if not d2c_keys:
             return lookup
         for i in range(0, len(d2c_keys), _BATCH_SIZE):
@@ -369,9 +367,7 @@ def _collect_upsert_data(
     storage: Storage,
     table_files: list[dict],
     on_file_done: Callable[[], None] | None = None,
-) -> tuple[
-    list[dict], list[dict], set[tuple], Iterable[tuple], set[str], bool
-]:
+) -> tuple[list[dict], list[dict], set[tuple], Iterable[tuple], set[str], bool]:
     """Scan data files (Pass 1) and collect unique localidades, dimensions, and periodo codigos.
 
     Returns (loc_dicts, dim_dicts, seen_locs, dim_keys, seen_periodos, has_data).
@@ -556,9 +552,7 @@ def _stream_staging(
     )
 
 
-def get_loaded_filenames(
-    engine: sa.Engine, filenames: set[str]
-) -> set[str]:
+def get_loaded_filenames(engine: sa.Engine, filenames: set[str]) -> set[str]:
     """Return the subset of filenames already recorded in arquivo_carregado."""
     if not filenames:
         return set()

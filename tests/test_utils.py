@@ -82,9 +82,7 @@ class TestUnnestDimensoes(unittest.TestCase):
         rows = list(unnest_dimensoes([_Var(1)], classifications))
         self.assertEqual(len(rows), 1)
         for slot in ("d4c", "d5c", "d6c", "d7c", "d8c", "d9c"):
-            self.assertIsNotNone(
-                rows[0][slot], msg=f"{slot} should not be None"
-            )
+            self.assertIsNotNone(rows[0][slot], msg=f"{slot} should not be None")
 
     def test_category_unit_overrides_variable_unit(self):
         cats = [_Cat(1, "A", unidade="USD")]

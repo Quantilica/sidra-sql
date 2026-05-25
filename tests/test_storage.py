@@ -40,7 +40,9 @@ class TestStorage(unittest.TestCase):
         )
         modification = "2005-01-05"
         filename = Storage.build_data_filename(parameter, modification)
-        expected_filename = "t-123_p-202001,202002_f-C_n6-12345,67890_v-allxp_c-@2005-01-05.json"
+        expected_filename = (
+            "t-123_p-202001,202002_f-C_n6-12345,67890_v-allxp_c-@2005-01-05.json"
+        )
         self.assertEqual(filename, expected_filename)
 
     def test_get_filename_empty_territory_and_no_vars(self):
@@ -70,9 +72,7 @@ class TestStorage(unittest.TestCase):
             storage = Storage(td)
 
             # create param
-            param = _SimpleParam(
-                "1", {"6": ["1"]}, ["2020"], None, {"": []}, _Fmt("C")
-            )
+            param = _SimpleParam("1", {"6": ["1"]}, ["2020"], None, {"": []}, _Fmt("C"))
 
             # write
             storage.write_data(data, param, "2005-01-05")
@@ -98,9 +98,7 @@ class TestStorage(unittest.TestCase):
         data = [{"NC": "header_only"}]
         with tempfile.TemporaryDirectory() as td:
             storage = Storage(td)
-            param = _SimpleParam(
-                "2", {"6": ["1"]}, ["2021"], None, {"": []}, _Fmt("C")
-            )
+            param = _SimpleParam("2", {"6": ["1"]}, ["2021"], None, {"": []}, _Fmt("C"))
             storage.write_data(data, param, "2021-01-01")
             filepath = storage.get_data_filepath(param, "2021-01-01")
             self.assertEqual(storage.read_data(filepath), [])
@@ -108,20 +106,14 @@ class TestStorage(unittest.TestCase):
     def test_exists_returns_false_for_missing_file(self):
         with tempfile.TemporaryDirectory() as td:
             storage = Storage(td)
-            param = _SimpleParam(
-                "3", {"6": ["1"]}, ["2020"], None, {"": []}, _Fmt("C")
-            )
+            param = _SimpleParam("3", {"6": ["1"]}, ["2020"], None, {"": []}, _Fmt("C"))
             self.assertFalse(storage.exists(param, "2020-01-01"))
 
     def test_exists_returns_true_after_write(self):
         with tempfile.TemporaryDirectory() as td:
             storage = Storage(td)
-            param = _SimpleParam(
-                "4", {"6": ["1"]}, ["2020"], None, {"": []}, _Fmt("C")
-            )
-            storage.write_data(
-                [{"header": "row"}, {"V": "1"}], param, "2020-01-01"
-            )
+            param = _SimpleParam("4", {"6": ["1"]}, ["2020"], None, {"": []}, _Fmt("C"))
+            storage.write_data([{"header": "row"}, {"V": "1"}], param, "2020-01-01")
             self.assertTrue(storage.exists(param, "2020-01-01"))
 
     def test_storage_default_creates_directory_from_config(self):

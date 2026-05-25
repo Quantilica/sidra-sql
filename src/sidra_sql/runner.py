@@ -46,9 +46,7 @@ def run_subtree(
 
     if fetch_path.exists():
         if console:
-            console.rule(
-                f"[bold cyan]fetch[/bold cyan]  {path.name}", style="cyan dim"
-            )
+            console.rule(f"[bold cyan]fetch[/bold cyan]  {path.name}", style="cyan dim")
         t0 = time.monotonic()
         TomlScript(
             config,

@@ -25,9 +25,7 @@ from sidra_sql.scaffold import PipelineAdder, PluginScaffolder
 from sidra_sql.validator import PluginValidator, Severity
 from sidra_sql.transform_runner import TransformRunner
 
-app = typer.Typer(
-    help=f"Sidra-SQL CLI v{__version__} - Manage and run data pipelines"
-)
+app = typer.Typer(help=f"Sidra-SQL CLI v{__version__} - Manage and run data pipelines")
 plugin_app = typer.Typer(help="Manage pipeline plugins")
 config_app = typer.Typer(help="Manage sidra-sql configuration")
 app.add_typer(plugin_app, name="plugin")
@@ -125,12 +123,8 @@ def config_get(
 
 @config_app.command("list")
 def config_list(
-    use_global: bool = typer.Option(
-        False, "--global", help="Show only global config"
-    ),
-    local: bool = typer.Option(
-        False, "--local", help="Show only local config"
-    ),
+    use_global: bool = typer.Option(False, "--global", help="Show only global config"),
+    local: bool = typer.Option(False, "--local", help="Show only local config"),
 ):
     """List configuration values. Without flags, shows merged view (local overrides global)."""
     if use_global:
@@ -225,9 +219,7 @@ def remove_plugin(
 
 @plugin_app.command("scaffold")
 def scaffold_plugin(
-    name: str = typer.Argument(
-        ..., help="Nome do plugin (vira o diretório raiz)"
-    ),
+    name: str = typer.Argument(..., help="Nome do plugin (vira o diretório raiz)"),
     description: str = typer.Option(
         "", "--description", "-d", help="Descrição do plugin"
     ),
@@ -241,9 +233,7 @@ def scaffold_plugin(
 ):
     """Cria a estrutura de arquivos para um novo plugin com templates prontos."""
     try:
-        scaffolder = PluginScaffolder(
-            name, description, version, output_dir, git_init
-        )
+        scaffolder = PluginScaffolder(name, description, version, output_dir, git_init)
         plugin_dir = scaffolder.create()
         slug = scaffolder.slug
 
@@ -322,9 +312,7 @@ def add_pipeline(
         console.print(
             f"  2. Ajuste [cyan]{adder.path}/{adder.slug}.sql[/cyan] para a sua transformação"
         )
-        console.print(
-            f"  3. Execute: [dim]sidra-sql run <alias> {pipeline_id}[/dim]\n"
-        )
+        console.print(f"  3. Execute: [dim]sidra-sql run <alias> {pipeline_id}[/dim]\n")
     except (FileNotFoundError, FileExistsError, ValueError) as e:
         console.print(f"[red]Erro:[/red] {e}")
         raise typer.Exit(1)
@@ -431,9 +419,7 @@ def run_pipeline(
             manifest = manager.read_manifest(alias)
             pipelines = manifest.pipelines
             if not pipelines:
-                console.print(
-                    f"[yellow]No pipelines found in '{alias}'.[/yellow]"
-                )
+                console.print(f"[yellow]No pipelines found in '{alias}'.[/yellow]")
                 return
             _print_header()
             for p in pipelines:
@@ -460,9 +446,7 @@ def run_pipeline(
                 console=console,
             )
 
-            console.print(
-                "[bold green]Pipeline completed successfully![/bold green]"
-            )
+            console.print("[bold green]Pipeline completed successfully![/bold green]")
 
     except ConfigError as e:
         console.print(f"[bold yellow]{e}[/bold yellow]")
@@ -490,9 +474,7 @@ def run_pipeline_path(
     try:
         resolved = path.resolve()
         if not resolved.is_dir():
-            console.print(
-                f"[bold red]Directory not found:[/bold red] {resolved}"
-            )
+            console.print(f"[bold red]Directory not found:[/bold red] {resolved}")
             raise typer.Exit(1)
 
         config = Config()
@@ -504,9 +486,7 @@ def run_pipeline_path(
             force_load=force_load,
             console=console,
         )
-        console.print(
-            "[bold green]Pipeline completed successfully![/bold green]"
-        )
+        console.print("[bold green]Pipeline completed successfully![/bold green]")
     except ConfigError as e:
         console.print(f"[bold yellow]{e}[/bold yellow]")
         raise typer.Exit(1)
@@ -530,18 +510,12 @@ def transform_pipeline(
 
         transform_path = pipeline.path / "transform.toml"
         if not transform_path.exists():
-            console.print(
-                f"[red]No transform.toml found at {transform_path}[/red]"
-            )
+            console.print(f"[red]No transform.toml found at {transform_path}[/red]")
             raise typer.Exit(1)
 
-        console.print(
-            f"[bold blue]Transforming {pipeline_id} from {alias}[/bold blue]"
-        )
+        console.print(f"[bold blue]Transforming {pipeline_id} from {alias}[/bold blue]")
         TransformRunner(config, transform_path).run()
-        console.print(
-            "[bold green]Transform completed successfully![/bold green]"
-        )
+        console.print("[bold green]Transform completed successfully![/bold green]")
 
     except typer.Exit:
         raise

@@ -100,9 +100,7 @@ sql = "resumo.sql"
             for i, s in enumerate(engine.log)
             if "ipca" in s and "ipca_resumo" not in s
         )
-        view_idx = next(
-            i for i, s in enumerate(engine.log) if "ipca_resumo" in s
-        )
+        view_idx = next(i for i, s in enumerate(engine.log) if "ipca_resumo" in s)
         self.assertLess(ipca_idx, view_idx)
 
     def test_legacy_singular_table_raises(self):
