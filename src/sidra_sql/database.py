@@ -578,22 +578,52 @@ def _stream_staging(
 def ensure_vintage_schema(engine: sa.Engine) -> None:
     """Migrate an existing `dados` table to the vintage-storage layout.
 
-    Idempotent. Fresh databases already get the correct layout from
-    `Base.metadata.create_all`; this brings pre-vintage databases (which had the
-    full `uq_dados` unique constraint) in line by dropping it and ensuring the
-    partial unique index (one active row per key) and the as-of support index.
+    Transitional shim — repairs pre-vintage databases that still carry the full
+    `uq_dados` unique constraint by dropping it and ensuring the partial unique
+    index (one active row per key) plus the as-of support index. Fresh databases
+    already get the correct layout from `Base.metadata.create_all`.
+
+    Self-skipping: it inspects the catalog first and only issues DDL for what is
+    actually missing. Once a database is migrated it runs **no** DDL at all (just
+    a cheap catalog read), so it never re-acquires a table lock on subsequent
+    runs. Safe to drop entirely once every deployment is known to be migrated.
     """
-    statements = (
-        "ALTER TABLE dados DROP CONSTRAINT IF EXISTS uq_dados",
-        "CREATE UNIQUE INDEX IF NOT EXISTS uq_dados_ativo"
-        " ON dados (tabela_sidra_id, localidade_id, dimensao_id, periodo_id)"
-        " WHERE ativo",
-        "CREATE INDEX IF NOT EXISTS ix_dados_asof"
-        " ON dados (tabela_sidra_id, periodo_id, modificacao)",
-    )
     with engine.begin() as conn:
-        for stmt in statements:
-            conn.exec_driver_sql(stmt)
+        has_old_constraint = (
+            conn.execute(
+                sa.text(
+                    "SELECT 1 FROM pg_constraint"
+                    " WHERE conname = 'uq_dados'"
+                    " AND conrelid = to_regclass('dados')"
+                )
+            ).first()
+            is not None
+        )
+        has_partial_index = (
+            conn.execute(sa.text("SELECT to_regclass('uq_dados_ativo')")).scalar()
+            is not None
+        )
+        has_asof_index = (
+            conn.execute(sa.text("SELECT to_regclass('ix_dados_asof')")).scalar()
+            is not None
+        )
+
+        if not has_old_constraint and has_partial_index and has_asof_index:
+            return  # already migrated — no DDL, no lock
+
+        if has_old_constraint:
+            conn.exec_driver_sql("ALTER TABLE dados DROP CONSTRAINT uq_dados")
+        if not has_partial_index:
+            conn.exec_driver_sql(
+                "CREATE UNIQUE INDEX uq_dados_ativo"
+                " ON dados (tabela_sidra_id, localidade_id, dimensao_id, periodo_id)"
+                " WHERE ativo"
+            )
+        if not has_asof_index:
+            conn.exec_driver_sql(
+                "CREATE INDEX ix_dados_asof"
+                " ON dados (tabela_sidra_id, periodo_id, modificacao)"
+            )
 
 
 def get_loaded_filenames(engine: sa.Engine, filenames: set[str]) -> set[str]:
