@@ -242,6 +242,7 @@ class TomlScript:
                 f'CREATE SCHEMA IF NOT EXISTS "{self.config.db_schema}"'
             )
         models.Base.metadata.create_all(engine)
+        database.ensure_vintage_schema(engine)
         try:
             self._run(engine)
         except KeyboardInterrupt:

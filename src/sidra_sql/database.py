@@ -308,39 +308,59 @@ _STAGING_DDL = (
     "  dimensao_id bigint,"
     "  periodo_id integer,"
     "  modificacao date,"
-    "  ativo boolean,"
     "  v text"
     ") ON COMMIT DROP"
-)
-
-_STAGING_INSERT = (
-    "INSERT INTO dados"
-    " (tabela_sidra_id, localidade_id, dimensao_id, periodo_id, modificacao, ativo, v)"
-    " SELECT tabela_sidra_id, localidade_id, dimensao_id,"
-    "  periodo_id, modificacao, ativo, v"
-    " FROM _staging_dados"
-    " ON CONFLICT DO NOTHING"
-)
-
-_STAGING_DEACTIVATE = (
-    "UPDATE dados d"
-    " SET ativo = FALSE"
-    " FROM ("
-    "  SELECT tabela_sidra_id, periodo_id, MAX(modificacao) AS max_mod"
-    "  FROM _staging_dados"
-    "  GROUP BY tabela_sidra_id, periodo_id"
-    " ) latest"
-    " WHERE d.tabela_sidra_id = latest.tabela_sidra_id"
-    "  AND d.periodo_id = latest.periodo_id"
-    "  AND d.modificacao < latest.max_mod"
-    "  AND d.ativo = TRUE"
 )
 
 _STAGING_COPY = (
     "COPY _staging_dados"
     " (tabela_sidra_id, localidade_id, dimensao_id,"
-    "  periodo_id, modificacao, ativo, v)"
+    "  periodo_id, modificacao, v)"
     " FROM STDIN"
+)
+
+# Vintages distintos presentes no staging, em ordem ascendente. Processar nessa
+# ordem garante que o histórico de change-points seja construído corretamente e
+# que a revisão mais recente termine ativa.
+_STAGING_MODIFICACOES = (
+    "SELECT DISTINCT modificacao FROM _staging_dados ORDER BY modificacao"
+)
+
+# Desativa a linha ativa de uma chave quando o valor do vintage corrente difere
+# (detecção-de-mudança). Recarga idêntica não toca nada.
+_DEACTIVATE_GROUP = (
+    "UPDATE dados d"
+    " SET ativo = FALSE"
+    " FROM _staging_dados s"
+    " WHERE s.modificacao = %(mod)s"
+    "  AND d.tabela_sidra_id = s.tabela_sidra_id"
+    "  AND d.localidade_id = s.localidade_id"
+    "  AND d.dimensao_id = s.dimensao_id"
+    "  AND d.periodo_id = s.periodo_id"
+    "  AND d.ativo = TRUE"
+    "  AND d.v IS DISTINCT FROM s.v"
+)
+
+# Insere o vintage como nova linha ativa quando não há ativa para a chave
+# (novo ou recém-desativado acima) ou quando o valor difere. DISTINCT ON evita
+# inserir >1 linha por chave no mesmo grupo de modificacao.
+_INSERT_GROUP = (
+    "INSERT INTO dados"
+    " (tabela_sidra_id, localidade_id, dimensao_id, periodo_id, modificacao, ativo, v)"
+    " SELECT DISTINCT ON"
+    "  (s.tabela_sidra_id, s.localidade_id, s.dimensao_id, s.periodo_id)"
+    "  s.tabela_sidra_id, s.localidade_id, s.dimensao_id, s.periodo_id,"
+    "  s.modificacao, TRUE, s.v"
+    " FROM _staging_dados s"
+    " LEFT JOIN dados d"
+    "  ON d.tabela_sidra_id = s.tabela_sidra_id"
+    "  AND d.localidade_id = s.localidade_id"
+    "  AND d.dimensao_id = s.dimensao_id"
+    "  AND d.periodo_id = s.periodo_id"
+    "  AND d.ativo = TRUE"
+    " WHERE s.modificacao = %(mod)s"
+    "  AND (d.id IS NULL OR d.v IS DISTINCT FROM s.v)"
+    " ORDER BY s.tabela_sidra_id, s.localidade_id, s.dimensao_id, s.periodo_id"
 )
 
 
@@ -528,7 +548,6 @@ def _stream_staging(
                             dim_id,
                             periodo_id,
                             modificacao,
-                            True,
                             str(row.get("V")),
                         )
                     )
@@ -537,10 +556,14 @@ def _stream_staging(
                 if on_file_done is not None:
                     on_file_done()
 
-        cur.execute(_STAGING_INSERT)
-        n_inserted = cur.rowcount
-        cur.execute(_STAGING_DEACTIVATE)
-        n_deactivated = cur.rowcount
+        cur.execute(_STAGING_MODIFICACOES)
+        modificacoes = [r[0] for r in cur.fetchall()]
+        n_inserted = n_deactivated = 0
+        for mod in modificacoes:
+            cur.execute(_DEACTIVATE_GROUP, {"mod": mod})
+            n_deactivated += cur.rowcount
+            cur.execute(_INSERT_GROUP, {"mod": mod})
+            n_inserted += cur.rowcount
 
     return (
         n_rows,
@@ -550,6 +573,27 @@ def _stream_staging(
         missing_dims,
         missing_periodos,
     )
+
+
+def ensure_vintage_schema(engine: sa.Engine) -> None:
+    """Migrate an existing `dados` table to the vintage-storage layout.
+
+    Idempotent. Fresh databases already get the correct layout from
+    `Base.metadata.create_all`; this brings pre-vintage databases (which had the
+    full `uq_dados` unique constraint) in line by dropping it and ensuring the
+    partial unique index (one active row per key) and the as-of support index.
+    """
+    statements = (
+        "ALTER TABLE dados DROP CONSTRAINT IF EXISTS uq_dados",
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_dados_ativo"
+        " ON dados (tabela_sidra_id, localidade_id, dimensao_id, periodo_id)"
+        " WHERE ativo",
+        "CREATE INDEX IF NOT EXISTS ix_dados_asof"
+        " ON dados (tabela_sidra_id, periodo_id, modificacao)",
+    )
+    with engine.begin() as conn:
+        for stmt in statements:
+            conn.exec_driver_sql(stmt)
 
 
 def get_loaded_filenames(engine: sa.Engine, filenames: set[str]) -> set[str]:
@@ -583,8 +627,10 @@ def load_dados(
     * Between passes — upsert localidades and dimensions, then build
       ID lookup dicts.
     * Pass 2 — re-read the JSON files and stream resolved rows into a
-      temporary staging table via the PostgreSQL COPY protocol, then
-      INSERT into dados with ON CONFLICT DO NOTHING.
+      temporary staging table via the PostgreSQL COPY protocol, then merge
+      into dados per vintage (modificacao) in ascending order using
+      deactivate-then-insert by value difference (vintage storage): each
+      distinct value becomes a retained row, the latest stays `ativo`.
     """
     files_by_table: dict[str, list[dict]] = {}
     for data_file in data_files:

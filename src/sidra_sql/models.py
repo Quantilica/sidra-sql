@@ -173,12 +173,25 @@ class Dados(Base):
     __tablename__ = "dados"
     __table_args__ = (
         sa.Index("ix_dados_periodo", "tabela_sidra_id", "periodo_id"),
-        UniqueConstraint(
+        # Vintage storage: várias revisões (modificacao) coexistem por chave,
+        # no máximo uma ativa. O índice único parcial WHERE ativo garante essa
+        # invariante; as 4 colunas são NOT NULL, então não precisa de
+        # NULLS NOT DISTINCT (sem requisito de PostgreSQL >= 15).
+        sa.Index(
+            "uq_dados_ativo",
             "tabela_sidra_id",
             "localidade_id",
             "dimensao_id",
             "periodo_id",
-            name="uq_dados",
+            unique=True,
+            postgresql_where=sa.text("ativo"),
+        ),
+        # Apoio à reconstrução as-of: a linha de maior modificacao <= data.
+        sa.Index(
+            "ix_dados_asof",
+            "tabela_sidra_id",
+            "periodo_id",
+            "modificacao",
         ),
     )
 

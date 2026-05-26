@@ -141,5 +141,36 @@ class TestPeriodoByCodigoQuery(unittest.TestCase):
         self.assertIn(result["200702"], {1, 2})
 
 
+class TestVintageStagingSql(unittest.TestCase):
+    """Lock in the vintage-storage merge semantics (deactivate-then-insert by
+    value difference, processed per modificacao group)."""
+
+    def test_staging_table_has_no_ativo_column(self):
+        # ativo is derived at merge time, not carried through staging.
+        self.assertNotIn("ativo", database._STAGING_DDL)
+        self.assertNotIn("ativo", database._STAGING_COPY)
+
+    def test_deactivate_uses_value_difference(self):
+        self.assertIn("ativo = FALSE", database._DEACTIVATE_GROUP)
+        self.assertIn("d.v IS DISTINCT FROM s.v", database._DEACTIVATE_GROUP)
+        self.assertIn("%(mod)s", database._DEACTIVATE_GROUP)
+
+    def test_insert_is_change_point_only_and_dedups_per_key(self):
+        self.assertIn("DISTINCT ON", database._INSERT_GROUP)
+        self.assertIn(
+            "d.id IS NULL OR d.v IS DISTINCT FROM s.v", database._INSERT_GROUP
+        )
+        self.assertIn("%(mod)s", database._INSERT_GROUP)
+        # New rows are always inserted active.
+        self.assertIn("TRUE", database._INSERT_GROUP)
+
+    def test_no_on_conflict_do_nothing_in_merge(self):
+        # The old lossy strategy discarded revisions via ON CONFLICT DO NOTHING.
+        self.assertNotIn("ON CONFLICT", database._INSERT_GROUP)
+
+    def test_modificacoes_sorted_ascending(self):
+        self.assertIn("ORDER BY modificacao", database._STAGING_MODIFICACOES)
+
+
 if __name__ == "__main__":
     unittest.main()
