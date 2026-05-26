@@ -1,3 +1,4 @@
+import datetime as dt
 import logging
 from pathlib import Path
 from typing import Optional
@@ -19,6 +20,7 @@ from sidra_sql.config import (
     GLOBAL_CONFIG_PATH,
     LOCAL_CONFIG_PATH,
 )
+from sidra_sql.exporter import Exporter
 from sidra_sql.plugin_manager import PluginManager
 from sidra_sql.runner import run_subtree
 from sidra_sql.scaffold import PipelineAdder, PluginScaffolder
@@ -527,6 +529,88 @@ def transform_pipeline(
         import traceback
 
         traceback.print_exc()
+
+
+@app.command("export")
+def export_pipeline(
+    alias: str = typer.Argument(..., help="Plugin alias"),
+    pipeline_id: Optional[str] = typer.Argument(
+        None, help="Pipeline ID to export (omit to export all)"
+    ),
+    output_dir: Path = typer.Option(
+        Path("export"),
+        "--output-dir",
+        "-o",
+        help="Diretório de saída dos CSVs",
+    ),
+    as_of: Optional[str] = typer.Option(
+        None,
+        "--as-of",
+        help="Snapshot do vintage publicado até a data (YYYY-MM-DD)",
+    ),
+):
+    """Export a pipeline's analytics outputs to CSV (optionally an as-of snapshot).
+
+    Without --as-of, dumps the materialized analytics tables. With --as-of DATE,
+    reconstructs each output as IBGE published it on that date, without touching
+    the persisted analytics tables.
+    """
+    try:
+        config = Config()
+
+        asof_date: dt.date | None = None
+        if as_of is not None:
+            try:
+                asof_date = dt.date.fromisoformat(as_of)
+            except ValueError:
+                console.print(
+                    f"[bold red]Data inválida para --as-of:[/bold red] {as_of} "
+                    "(use YYYY-MM-DD)"
+                )
+                raise typer.Exit(1)
+
+        if pipeline_id is None:
+            manifest = manager.read_manifest(alias)
+            pipelines = manifest.pipelines
+            if not pipelines:
+                console.print(f"[yellow]No pipelines found in '{alias}'.[/yellow]")
+                return
+            targets = [(p.id, p.path) for p in pipelines]
+        else:
+            pipeline = manager.get_pipeline(alias, pipeline_id)
+            targets = [(pipeline.id, pipeline.path)]
+
+        _print_header()
+        total = 0
+        for pid, path in targets:
+            toml_path = path / "transform.toml"
+            if not toml_path.exists():
+                console.print(
+                    f"[yellow]Pipeline '{pid}' sem transform.toml — pulando.[/yellow]"
+                )
+                continue
+            console.print(f"\n[cyan]→ {pid}[/cyan]")
+            written = Exporter(config, toml_path, console=console).export(
+                output_dir, asof=asof_date
+            )
+            total += len(written)
+
+        console.print(
+            f"\n[bold green]Export concluído: {total} arquivo(s) em "
+            f"{output_dir}[/bold green]"
+        )
+
+    except typer.Exit:
+        raise
+    except ConfigError as e:
+        console.print(f"[bold yellow]{e}[/bold yellow]")
+        raise typer.Exit(1)
+    except Exception as e:
+        console.print(f"[bold red]Export failed:[/bold red] {e}")
+        import traceback
+
+        traceback.print_exc()
+        raise typer.Exit(1)
 
 
 def main():
