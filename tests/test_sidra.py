@@ -77,23 +77,19 @@ class TestSidra(unittest.TestCase):
 
         import sidra_sql.sidra as sidra_module
 
-        sleep_calls = []
-        orig_sleep = sidra_module.time.sleep
-        sidra_module.time.sleep = lambda s: sleep_calls.append(s)
-        try:
-            result = fetcher.get_table(P())
-        finally:
-            sidra_module.time.sleep = orig_sleep
+        # Backoff uses the cancellation-aware _cancel.wait(delay); record the
+        # delay and report "not cancelled" so the retry proceeds.
+        wait_calls = []
+        fetcher._cancel.wait = lambda delay: wait_calls.append(delay) or False
+        result = fetcher.get_table(P())
 
         self.assertIsInstance(result, list)
         self.assertEqual(len(result), 2)
-        # One sleep call with the base delay (first attempt, exponent 0)
-        self.assertEqual(len(sleep_calls), 1)
-        self.assertEqual(sleep_calls[0], sidra_module._RETRY_BASE_DELAY)
+        # One backoff with the base delay (first attempt, exponent 0)
+        self.assertEqual(len(wait_calls), 1)
+        self.assertEqual(wait_calls[0], sidra_module._RETRY_BASE_DELAY)
 
     def test_get_table_raises_after_max_retries(self):
-        import sidra_sql.sidra as sidra_module
-
         fetcher = Fetcher(_DummyConfig())
 
         class AlwaysTimesOut:
@@ -106,18 +102,12 @@ class TestSidra(unittest.TestCase):
             def url(self):
                 return "http://example"
 
-        orig_sleep = sidra_module.time.sleep
-        sidra_module.time.sleep = lambda s: None
-        try:
-            with self.assertRaises(httpx.ReadTimeout):
-                fetcher.get_table(P())
-        finally:
-            sidra_module.time.sleep = orig_sleep
+        fetcher._cancel.wait = lambda delay: False
+        with self.assertRaises(httpx.ReadTimeout):
+            fetcher.get_table(P())
 
     def test_get_table_retries_on_connect_error(self):
         """Broader error types beyond ReadTimeout are also retried."""
-        import sidra_sql.sidra as sidra_module
-
         fetcher = Fetcher(_DummyConfig())
         calls = {"n": 0}
 
@@ -134,12 +124,8 @@ class TestSidra(unittest.TestCase):
             def url(self):
                 return "http://example"
 
-        orig_sleep = sidra_module.time.sleep
-        sidra_module.time.sleep = lambda s: None
-        try:
-            result = fetcher.get_table(P())
-        finally:
-            sidra_module.time.sleep = orig_sleep
+        fetcher._cancel.wait = lambda delay: False
+        result = fetcher.get_table(P())
 
         self.assertEqual(len(result), 1)
 
