@@ -479,6 +479,8 @@ WHERE d.tabela_sidra_id IN ('839', '1612')
 
 > **Importante:** Valores não numéricos do SIDRA (`"..."`, `"-"`, `"X"`, `"C"`) são armazenados como texto na coluna `v`. Use o padrão `CASE WHEN d.v ~ '^-?[0-9]' THEN d.v::numeric END` para convertê-los em `NULL` de forma segura.
 
+> **Sempre filtre `WHERE d.ativo = true`.** Além de selecionar a revisão mais recente, é esse filtro que torna o `sidra-sql export --as-of <data>` possível: no modo as-of o motor substitui `dados` por uma view temporária que expõe, por chave, a revisão vigente na data como `ativo = true` — então o seu `.sql` reconstrói o vintage **sem nenhuma alteração**. Não filtre por `modificacao` diretamente no transform.
+
 ### Referência do esquema normalizado
 
 As tabelas abaixo ficam no schema configurado em `config.ini` (padrão: `ibge_sidra`).

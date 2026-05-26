@@ -31,7 +31,9 @@ Este projeto resolve exatamente esse problema: um pipeline ETL completo, com con
 | **Cache inteligente** | Filenames determinísticos — cache-hit evita requisições duplicadas à API |
 | **Retry com backoff** | Até 5 tentativas com delay exponencial (5s, 10s, 20s…) em falhas de rede |
 | **Carga em massa** | Protocolo COPY nativo do PostgreSQL via `psycopg3` para inserção em alta performance |
-| **Upsert idempotente** | `ON CONFLICT DO NOTHING/UPDATE` em todas as operações — re-execuções são seguras |
+| **Versionamento de revisões** | Soft-versioning na própria fato: cada revisão do IBGE é retida, no máximo uma linha ativa por chave (índice único parcial) — habilita snapshots as-of |
+| **Recarga idempotente** | Detecção-de-mudança na carga — re-execução sem dados novos é no-op (zero churn) |
+| **Export CSV + as-of** | `export` grava as saídas em CSV via `COPY`; `--as-of DATE` reconstrói o vintage publicado na data |
 | **Skip inteligente de carga** | Tabela `arquivo_carregado` rastreia arquivos já carregados; re-execuções pulam o trabalho sem repetir I/O |
 | **Normalização completa** | Localidades, dimensões (variável × classificação) e fatos em tabelas separadas |
 | **Suporte a 6 classificações** | Produto cartesiano de até 6 níveis de classificação por variável |
@@ -124,12 +126,25 @@ O banco é organizado em cinco tabelas no schema `ibge_sidra` (configurável):
                                      └──────────────────────────────────────────┘
 ```
 
-**Constraint de unicidade na tabela `dados`:**
+### Versionamento de revisões (vintage storage)
+
+O IBGE revisa valores ao longo do tempo. A tabela `dados` preserva esse histórico: cada revisão distinta de uma chave lógica vira uma linha, e **no máximo uma** fica `ativo = TRUE` (a mais recente). A invariante é garantida fisicamente por um **índice único parcial**:
+
 ```sql
-UNIQUE (tabela_sidra_id, localidade_id, dimensao_id, periodo_id)
+CREATE UNIQUE INDEX uq_dados_ativo
+  ON dados (tabela_sidra_id, localidade_id, dimensao_id, periodo_id)
+  WHERE ativo;
 ```
 
-Isso garante que cada combinação de tabela × localidade × variável/classificação × período exista apenas uma vez, tornando re-execuções completamente seguras.
+A carga aplica **detecção-de-mudança** (deactivate-then-insert por diferença de valor), processando cada `modificacao` em ordem crescente:
+
+- **Carga inicial / valor novo:** insere a linha como `ativo = TRUE`.
+- **Recarga idêntica:** no-op — nenhuma linha é tocada (zero churn).
+- **Revisão de valor:** a linha ativa anterior vira `ativo = FALSE` (retida) e o novo valor entra como `ativo = TRUE`.
+
+Assim, **"verdade atual"** = `WHERE ativo`; **"trilha de revisão"** = todas as linhas da chave por `modificacao`. Isso é o que torna o `sidra-sql export --as-of <data>` possível: por chave, a linha de maior `modificacao <= data` é o valor publicado naquela data.
+
+> **Migração:** bancos criados antes desta mudança tinham uma constraint única cheia (`uq_dados`) e descartavam revisões. A migração para o índice parcial é idempotente e roda automaticamente no início de cada `sidra-sql run` (`ensure_vintage_schema`). Para reconstruir a trilha de vintages a partir do cache de arquivos JSON `@modificacao` já baixados, rode `--force-load`.
 
 ---
 
@@ -293,6 +308,29 @@ sidra-sql transform pam lavouras_temporarias
 ```
 
 > **`--force-load`** ignora a tabela `arquivo_carregado` e reprocessa todos os arquivos presentes em disco. Útil quando o schema do banco foi alterado ou quando é necessário reconstruir os dados a partir dos arquivos JSON locais já baixados. Não re-baixa arquivos da API — para isso use `--force-metadata` em conjunto.
+
+### 4. Exportar para CSV
+
+O comando `export` grava as saídas (`analytics.*`) de um pipeline em arquivos CSV, via protocolo `COPY` nativo do PostgreSQL (sem dependência de Polars/pandas).
+
+```bash
+# Exporta as saídas materializadas do pipeline para CSV (verdade atual)
+sidra-sql export pam lavouras_temporarias
+
+# Diretório de saída (default: ./export)
+sidra-sql export pam lavouras_temporarias --output-dir ./csv
+
+# Exporta todas as saídas de todos os pipelines do plugin
+sidra-sql export pam
+
+# Snapshot as-of: reconstrói as saídas como o IBGE as publicava na data
+sidra-sql export pam lavouras_temporarias --as-of 2024-03-01
+```
+
+- **Sem `--as-of`** lê as tabelas/views já materializadas (`analytics.<nome>`). Se uma saída ainda não existe, o comando avisa e sugere rodar `sidra-sql run`. Gera `<nome>.csv`.
+- **Com `--as-of DATE`** reconstrói cada saída a partir do histórico de revisões da tabela `dados`, reusando o próprio `.sql` do transform sem alterá-lo (uma view temporária `dados` expõe, por chave, a linha de maior `modificacao <= DATE`). Não toca as tabelas `analytics.*` persistidas. Gera `<nome>@YYYYMMDD.csv`.
+
+> O snapshot as-of só enxerga revisões já capturadas no banco (ver **Versionamento de revisões** abaixo). Para reconstruir vintages a partir do cache de arquivos JSON já baixados, rode `sidra-sql run <plugin> <pipeline> --force-load`.
 
 ---
 
@@ -487,7 +525,8 @@ API SIDRA (IBGE)
          │  → resolve IDs via lookup              │
          │  → usa data de modificação da API      │
          │  → stream via COPY para staging table  │
-         │  → INSERT com ON CONFLICT DO NOTHING   │
+         │  → merge por vintage (modificacao):    │
+         │    deactivate-then-insert por valor    │
          └───────────────┬────────────────────────┘
                          │
                          ▼
@@ -520,7 +559,8 @@ A suíte de testes cobre:
 | `tests/test_storage.py` | Geração de nomes, leitura/escrita, caminhos de metadados |
 | `tests/test_base.py` | Cache de metadados, deduplicação, download com filepaths |
 | `tests/test_sidra.py` | Retry logic, unnesting de classificações, context manager |
-| `tests/test_database.py` | Limpeza de dados, criação de engine, builders DDL/DCL |
+| `tests/test_database.py` | Limpeza de dados, criação de engine, semântica de carga (vintage merge) |
+| `tests/test_exporter.py` | Builders de SQL do export (COPY, view as-of), parsing de saídas |
 | `tests/test_utils.py` | Produto cartesiano de dimensões, resolução de unidade |
 
 ---
@@ -537,6 +577,7 @@ sidra-sql/
 │   ├── validator.py          # Validação de estrutura de plugins
 │   ├── toml_runner.py        # TomlScript — orquestra o pipeline ETL de extração
 │   ├── transform_runner.py   # TransformRunner — materializa TOML+SQL analíticos
+│   ├── exporter.py           # Exporter — export CSV das saídas + snapshots as-of
 │   ├── config.py             # Leitura de config.ini
 │   ├── database.py           # SQLAlchemy, carga, DDL/DCL
 │   ├── models.py             # ORM models (tabelas, localidades, dimensões, dados)
