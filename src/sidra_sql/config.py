@@ -9,6 +9,11 @@ from rich.logging import RichHandler
 APP_NAME = "sidra-sql"
 
 GLOBAL_CONFIG_PATH = (
+    Path(platformdirs.user_config_dir("quantilica", appauthor=False))
+    / APP_NAME
+    / "config.ini"
+)
+_OLD_GLOBAL_CONFIG_PATH = (
     Path(platformdirs.user_config_dir(APP_NAME, appauthor=False)) / "config.ini"
 )
 LOCAL_CONFIG_PATH = Path("config.ini")
@@ -37,7 +42,8 @@ No configuration found. Run the following commands to get started:
   sidra-sql config set database.schema   <schema>
   sidra-sql config set storage.data_dir  <path>
 
-Add --global to write to the user-level config (~/.config/sidra-sql/config.ini).\
+Add --global to write to the user-level config \
+(~/.config/quantilica/sidra-sql/config.ini).\
 """
 
 
@@ -47,6 +53,16 @@ class ConfigError(Exception):
 
 class Config:
     def __init__(self):
+        if not GLOBAL_CONFIG_PATH.exists() and _OLD_GLOBAL_CONFIG_PATH.exists():
+            import warnings
+
+            GLOBAL_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+            GLOBAL_CONFIG_PATH.write_text(_OLD_GLOBAL_CONFIG_PATH.read_text())
+            warnings.warn(
+                f"Config migrated from {_OLD_GLOBAL_CONFIG_PATH} to {GLOBAL_CONFIG_PATH}",
+                stacklevel=2,
+            )
+
         self.config = configparser.ConfigParser()
         self.config.read([GLOBAL_CONFIG_PATH, LOCAL_CONFIG_PATH])
 

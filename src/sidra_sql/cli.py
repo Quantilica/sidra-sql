@@ -76,7 +76,7 @@ def config_set(
     use_global: bool = typer.Option(
         False,
         "--global",
-        help="Write to global config (~/.config/sidra-sql/config.ini)",
+        help="Write to global config (~/.config/quantilica/sidra-sql/config.ini)",
     ),
 ):
     """Set a configuration value."""
