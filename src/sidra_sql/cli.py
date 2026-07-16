@@ -1,9 +1,7 @@
+import configparser
 import datetime as dt
 import logging
 from pathlib import Path
-from typing import Optional
-
-from sidra_sql import __version__
 
 import typer
 from rich.align import Align
@@ -12,20 +10,19 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-import configparser
-
+from sidra_sql import __version__
 from sidra_sql.config import (
-    Config,
-    ConfigError,
     GLOBAL_CONFIG_PATH,
     LOCAL_CONFIG_PATH,
+    Config,
+    ConfigError,
 )
 from sidra_sql.exporter import Exporter
 from sidra_sql.plugin_manager import PluginManager
 from sidra_sql.runner import run_subtree
 from sidra_sql.scaffold import PipelineAdder, PluginScaffolder
-from sidra_sql.validator import PluginValidator, Severity
 from sidra_sql.transform_runner import TransformRunner
+from sidra_sql.validator import PluginValidator, Severity
 
 app = typer.Typer(help=f"Sidra-SQL CLI v{__version__} - Manage and run data pipelines")
 plugin_app = typer.Typer(help="Manage pipeline plugins")
@@ -82,7 +79,8 @@ def config_set(
     """Set a configuration value."""
     if "." not in key:
         console.print(
-            "[bold red]Error:[/bold red] key must be in 'section.option' format (e.g. database.host)"
+            "[bold red]Error:[/bold red] key must be in 'section.option' "
+            "format (e.g. database.host)"
         )
         raise typer.Exit(1)
 
@@ -108,7 +106,8 @@ def config_get(
     """Get a configuration value (local overrides global)."""
     if "." not in key:
         console.print(
-            "[bold red]Error:[/bold red] key must be in 'section.option' format (e.g. database.host)"
+            "[bold red]Error:[/bold red] key must be in 'section.option' "
+            "format (e.g. database.host)"
         )
         raise typer.Exit(1)
 
@@ -128,7 +127,10 @@ def config_list(
     use_global: bool = typer.Option(False, "--global", help="Show only global config"),
     local: bool = typer.Option(False, "--local", help="Show only local config"),
 ):
-    """List configuration values. Without flags, shows merged view (local overrides global)."""
+    """List configuration values.
+
+    Without flags, shows merged view (local overrides global).
+    """
     if use_global:
         paths = [GLOBAL_CONFIG_PATH]
         label = "Global config"
@@ -143,7 +145,7 @@ def config_list(
     cfg.read(paths)
 
     if not cfg.sections():
-        console.print(f"[yellow]No configuration found.[/yellow]")
+        console.print("[yellow]No configuration found.[/yellow]")
         return
 
     table = Table(title=label, show_header=True, header_style="bold cyan")
@@ -167,7 +169,7 @@ def _version_callback(value: bool):
 
 @app.callback()
 def bootstrap(
-    version: Optional[bool] = typer.Option(
+    version: bool | None = typer.Option(
         None,
         "--version",
         "-V",
@@ -183,7 +185,7 @@ def bootstrap(
 @plugin_app.command("install")
 def install_plugin(
     url: str,
-    alias: Optional[str] = typer.Option(None, help="Alias for the plugin"),
+    alias: str | None = typer.Option(None, help="Alias for the plugin"),
 ):
     """Install a new plugin from a Git URL."""
     try:
@@ -195,7 +197,7 @@ def install_plugin(
 
 @plugin_app.command("update")
 def update_plugin(
-    alias: Optional[str] = typer.Argument(
+    alias: str | None = typer.Argument(
         None, help="Alias of the plugin to update (updates all if omitted)"
     ),
 ):
@@ -256,7 +258,8 @@ def scaffold_plugin(
             "  1. Edite [cyan]manifest.toml[/cyan] e ajuste a descrição do pipeline"
         )
         console.print(
-            f"  2. Em [cyan]{slug}/fetch.toml[/cyan], substitua XXXX pelo ID da tabela SIDRA"
+            f"  2. Em [cyan]{slug}/fetch.toml[/cyan], substitua XXXX pelo "
+            "ID da tabela SIDRA"
         )
         console.print(
             f"  3. Ajuste [cyan]{slug}/{slug}.sql[/cyan] para a sua transformação"
@@ -267,10 +270,10 @@ def scaffold_plugin(
         )
     except FileExistsError as e:
         console.print(f"[red]Erro:[/red] {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
     except RuntimeError as e:
         console.print(f"[red]Erro:[/red] {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
 
 @plugin_app.command("add-pipeline")
@@ -296,7 +299,7 @@ def add_pipeline(
     """Adiciona um novo pipeline a um plugin existente."""
     try:
         adder = PipelineAdder(pipeline_id, description, path, plugin_dir)
-        pipeline_dir_created = adder.add()
+        adder.add()
 
         console.print(
             f"\n[bold green]Pipeline '{pipeline_id}' adicionado[/bold green]\n"
@@ -309,23 +312,25 @@ def add_pipeline(
 
         console.print("[bold]Próximos passos:[/bold]")
         console.print(
-            f"  1. Em [cyan]{adder.path}/fetch.toml[/cyan], substitua XXXX pelo ID da tabela SIDRA"
+            f"  1. Em [cyan]{adder.path}/fetch.toml[/cyan], substitua XXXX "
+            "pelo ID da tabela SIDRA"
         )
         console.print(
-            f"  2. Ajuste [cyan]{adder.path}/{adder.slug}.sql[/cyan] para a sua transformação"
+            f"  2. Ajuste [cyan]{adder.path}/{adder.slug}.sql[/cyan] para "
+            "a sua transformação"
         )
         console.print(f"  3. Execute: [dim]sidra-sql run <alias> {pipeline_id}[/dim]\n")
     except (FileNotFoundError, FileExistsError, ValueError) as e:
         console.print(f"[red]Erro:[/red] {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
     except Exception as e:
         console.print(f"[red]Erro ao adicionar pipeline:[/red] {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
 
 @plugin_app.command("validate")
 def validate_plugin(
-    alias: Optional[str] = typer.Argument(
+    alias: str | None = typer.Argument(
         None, help="Alias do plugin instalado (omitir para usar --plugin-dir)"
     ),
     plugin_dir: Path = typer.Option(
@@ -390,7 +395,7 @@ def list_plugins():
         table.add_column("Pipeline ID", style="magenta")
         table.add_column("Description", style="green")
 
-        for alias, plugin_name, pipeline in pipelines:
+        for alias, _plugin_name, pipeline in pipelines:
             table.add_row(alias, pipeline.id, pipeline.description)
 
         console.print(table)
@@ -401,7 +406,7 @@ def list_plugins():
 @app.command("run")
 def run_pipeline(
     alias: str = typer.Argument(..., help="Plugin alias"),
-    pipeline_id: Optional[str] = typer.Argument(
+    pipeline_id: str | None = typer.Argument(
         None, help="Pipeline ID to run (omit to run all)"
     ),
     force_metadata: bool = typer.Option(
@@ -452,7 +457,7 @@ def run_pipeline(
 
     except ConfigError as e:
         console.print(f"[bold yellow]{e}[/bold yellow]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
     except Exception as e:
         console.print(f"[bold red]Pipeline failed:[/bold red] {e}")
         import traceback
@@ -491,13 +496,13 @@ def run_pipeline_path(
         console.print("[bold green]Pipeline completed successfully![/bold green]")
     except ConfigError as e:
         console.print(f"[bold yellow]{e}[/bold yellow]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
     except Exception as e:
         console.print(f"[bold red]Pipeline failed:[/bold red] {e}")
         import traceback
 
         traceback.print_exc()
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
 
 @app.command("transform")
@@ -523,7 +528,7 @@ def transform_pipeline(
         raise
     except ConfigError as e:
         console.print(f"[bold yellow]{e}[/bold yellow]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
     except Exception as e:
         console.print(f"[bold red]Transform failed:[/bold red] {e}")
         import traceback
@@ -534,7 +539,7 @@ def transform_pipeline(
 @app.command("export")
 def export_pipeline(
     alias: str = typer.Argument(..., help="Plugin alias"),
-    pipeline_id: Optional[str] = typer.Argument(
+    pipeline_id: str | None = typer.Argument(
         None, help="Pipeline ID to export (omit to export all)"
     ),
     output_dir: Path = typer.Option(
@@ -543,7 +548,7 @@ def export_pipeline(
         "-o",
         help="Diretório de saída dos CSVs",
     ),
-    as_of: Optional[str] = typer.Option(
+    as_of: str | None = typer.Option(
         None,
         "--as-of",
         help="Snapshot do vintage publicado até a data (YYYY-MM-DD)",
@@ -562,12 +567,12 @@ def export_pipeline(
         if as_of is not None:
             try:
                 asof_date = dt.date.fromisoformat(as_of)
-            except ValueError:
+            except ValueError as e:
                 console.print(
                     f"[bold red]Data inválida para --as-of:[/bold red] {as_of} "
                     "(use YYYY-MM-DD)"
                 )
-                raise typer.Exit(1)
+                raise typer.Exit(1) from e
 
         if pipeline_id is None:
             manifest = manager.read_manifest(alias)
@@ -604,13 +609,13 @@ def export_pipeline(
         raise
     except ConfigError as e:
         console.print(f"[bold yellow]{e}[/bold yellow]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
     except Exception as e:
         console.print(f"[bold red]Export failed:[/bold red] {e}")
         import traceback
 
         traceback.print_exc()
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
 
 def main():

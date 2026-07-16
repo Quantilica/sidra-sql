@@ -59,7 +59,8 @@ class Config:
             GLOBAL_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
             GLOBAL_CONFIG_PATH.write_text(_OLD_GLOBAL_CONFIG_PATH.read_text())
             warnings.warn(
-                f"Config migrated from {_OLD_GLOBAL_CONFIG_PATH} to {GLOBAL_CONFIG_PATH}",
+                f"Config migrated from {_OLD_GLOBAL_CONFIG_PATH} "
+                f"to {GLOBAL_CONFIG_PATH}",
                 stacklevel=2,
             )
 

@@ -5,7 +5,6 @@ import subprocess
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
 
 import platformdirs
 
@@ -28,7 +27,7 @@ class PluginManifest:
     name: str
     description: str
     version: str
-    pipelines: List[PipelineDef]
+    pipelines: list[PipelineDef]
 
 
 class PluginRegistry:
@@ -45,7 +44,7 @@ class PluginRegistry:
             self._save_registry({})
 
     def _load_registry(self) -> dict:
-        with open(self.registry_file, "r", encoding="utf-8") as f:
+        with open(self.registry_file, encoding="utf-8") as f:
             return json.load(f)
 
     def _save_registry(self, data: dict):
@@ -78,11 +77,12 @@ class PluginManager:
         """Verifica se o Git está instalado."""
         if shutil.which("git") is None:
             raise RuntimeError(
-                "Git não encontrado. O Git é necessário para gerenciar e baixar plugins. "
-                "Por favor, instale o Git (https://git-scm.com/) e tente novamente."
+                "Git não encontrado. O Git é necessário para gerenciar e "
+                "baixar plugins. Por favor, instale o Git "
+                "(https://git-scm.com/) e tente novamente."
             )
 
-    def install(self, url: str, alias: Optional[str] = None):
+    def install(self, url: str, alias: str | None = None):
         self._check_git()
         if not alias:
             # simple alias extraction from url
@@ -99,7 +99,7 @@ class PluginManager:
         self.registry.register_plugin(alias, url)
         logger.info("Plugin '%s' installed successfully.", alias)
 
-    def update(self, alias: Optional[str] = None):
+    def update(self, alias: str | None = None):
         self._check_git()
         plugins = self.registry.get_plugins()
         target_aliases = [alias] if alias else list(plugins.keys())
@@ -122,7 +122,8 @@ class PluginManager:
         if plugin_path.exists():
             logger.info("Removing directory %s", plugin_path)
 
-            # Use shutil on windows/linux to deal with read-only files sometimes created by git
+            # Use shutil on windows/linux to deal with read-only files
+            # sometimes created by git
             def handle_remove_readonly(func, path, exc):
                 import os
                 import stat
@@ -177,7 +178,7 @@ class PluginManager:
             pipelines=pipelines,
         )
 
-    def list_pipelines(self) -> List[tuple[str, str, PipelineDef]]:
+    def list_pipelines(self) -> list[tuple[str, str, PipelineDef]]:
         plugins = self.registry.get_plugins()
         all_pipelines = []
 

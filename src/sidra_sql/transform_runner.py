@@ -142,7 +142,8 @@ class TransformRunner:
                     idx_cols = ", ".join(f'"{c}"' for c in idx["columns"])
                     unique = "UNIQUE" if idx.get("unique") else ""
                     conn.exec_driver_sql(
-                        f'CREATE {unique} INDEX "{idx_name}" ON {qualified} ({idx_cols})'
+                        f'CREATE {unique} INDEX "{idx_name}" '
+                        f"ON {qualified} ({idx_cols})"
                     )
             else:
                 raise ValueError(

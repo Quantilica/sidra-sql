@@ -4,7 +4,7 @@
 
 **Pipeline ETL robusto para baixar, normalizar e carregar tabelas agregadas do SIDRA/IBGE em PostgreSQL.**
 
-![SIDRA-SQL banner](./assets/banner.png)
+![SIDRA-SQL banner](https://raw.githubusercontent.com/Quantilica/sidra-sql/v1.3.0/assets/banner.png)
 
 Trabalhar com dados do IBGE é uma tarefa que todo analista e cientista de dados brasileiro conhece bem — e sabe que não é simples. A API SIDRA disponibiliza um acervo imenso de séries estatísticas (PIB municipal, população, inflação, agropecuária e muito mais), mas transformar esses dados brutos em um banco de dados relacional, limpo, normalizado e pronto para consulta é trabalhoso e cheio de armadilhas.
 
@@ -185,13 +185,13 @@ Para criar suas próprias pipelines e distribuí-las como plugin, consulte o **[
 ## Instalação
 
 ```bash
-pip install git+https://github.com/Quantilica/sidra-sql.git
+pip install sidra-sql
 ```
 
 Com [uv](https://github.com/astral-sh/uv):
 
 ```bash
-uv add "git+https://github.com/Quantilica/sidra-sql.git"
+uv add sidra-sql
 ```
 
 **Dependências principais:**

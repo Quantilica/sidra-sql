@@ -54,13 +54,12 @@ Example TOML
 
 import logging
 import tomllib
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 import sqlalchemy as sa
 from rich.console import Console
-from rich.table import Table
-from rich.text import Text
 from rich.progress import (
     BarColumn,
     MofNCompleteColumn,
@@ -71,6 +70,8 @@ from rich.progress import (
     TimeElapsedColumn,
     TimeRemainingColumn,
 )
+from rich.table import Table
+from rich.text import Text
 
 from . import database, models, sidra
 from .config import Config
@@ -248,12 +249,10 @@ class TomlScript:
         except KeyboardInterrupt:
             if self.console is not None:
                 self.console.print("\n[yellow]Interrompido.[/yellow]")
-            raise SystemExit(1)
+            raise SystemExit(1) from None
 
     def _run(self, engine: sa.Engine):
         tabelas = list(self.get_tabelas())
-        n = len(tabelas)
-        s = "tabela" if n == 1 else "tabelas"
         n_meta = len({t["tabela_sidra"] for t in tabelas})
         s_meta = "tabela" if n_meta == 1 else "tabelas"
 

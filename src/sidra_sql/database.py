@@ -13,7 +13,8 @@ Public functions:
 import itertools
 import json
 import logging
-from typing import Any, Callable, Iterable
+from collections.abc import Callable, Iterable
+from typing import Any
 
 import sqlalchemy as sa
 from sidra_fetcher.agregados import Agregado
@@ -77,7 +78,10 @@ def get_engine(config: Config) -> sa.engine.Engine:
 
 
 def save_agregado(engine: sa.engine.Engine, agregado: Agregado):
-    """Save SIDRA table metadata, periods, and localidades to the database (idempotent)."""
+    """Save SIDRA table metadata, periods, and localidades to the database.
+
+    Idempotent.
+    """
 
     tabela_sidra = dict(
         id=str(agregado.id),
@@ -196,7 +200,9 @@ def build_localidade_lookup(
 def _dimensao_lookup_query(
     conn: sa.Connection, keys: Iterable[tuple] | None = None
 ) -> dict[tuple, int]:
-    """Return a mapping of (mc, d2c, d4c...d9c) -> dimensao.id using an open connection."""
+    """Return a mapping of (mc, d2c, d4c...d9c) -> dimensao.id using an open
+    connection.
+    """
     lookup: dict[tuple, int] = {}
     stmt = sa.select(
         models.Dimensao.id,
@@ -388,7 +394,8 @@ def _collect_upsert_data(
     table_files: list[dict],
     on_file_done: Callable[[], None] | None = None,
 ) -> tuple[list[dict], list[dict], set[tuple], Iterable[tuple], set[str], bool]:
-    """Scan data files (Pass 1) and collect unique localidades, dimensions, and periodo codigos.
+    """Scan data files (Pass 1) and collect unique localidades, dimensions,
+    and periodo codigos.
 
     Returns (loc_dicts, dim_dicts, seen_locs, dim_keys, seen_periodos, has_data).
     """
@@ -513,7 +520,8 @@ def _stream_staging(
 ) -> tuple[int, int, int, int, int, int]:
     """Stream resolved rows into the staging table via COPY, then flush to dados.
 
-    Returns (n_rows, n_inserted, n_deactivated, missing_locs, missing_dims, missing_periodos).
+    Returns (n_rows, n_inserted, n_deactivated, missing_locs, missing_dims,
+    missing_periodos).
     """
     missing_locs = missing_dims = missing_periodos = n_rows = 0
 

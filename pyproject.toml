@@ -6,19 +6,39 @@ readme = "README.md"
 authors = [
     { name = "Komesu, D.K.", email = "daniel@dkko.me" },
 ]
-license = { file = "LICENSE" }
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.12"
+keywords = ["ibge", "sidra", "postgresql", "etl", "brazil", "open-data"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Database",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+]
 dependencies = [
-    "sidra-fetcher @ git+https://github.com/Quantilica/sidra-fetcher.git@v0.7.0",
+    "sidra-fetcher>=0.7.2",
     "psycopg[binary]>=3.2.9",
     "sqlalchemy>=2.0.41",
     "orjson>=3.11.7",
     "platformdirs>=4.9.6",
     "typer>=0.24.1",
+    "rich>=13.0.0",
+    "httpx>=0.28.1",
 ]
 
 [project.scripts]
 sidra-sql = "sidra_sql.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/Quantilica/sidra-sql"
+Repository = "https://github.com/Quantilica/sidra-sql"
+Issues = "https://github.com/Quantilica/sidra-sql/issues"
 
 [dependency-groups]
 dev = [
@@ -26,9 +46,30 @@ dev = [
     "ruff>=0.9.0",
 ]
 
-[tool.hatch.metadata]
-allow-direct-references = true
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-p", "no:cacheprovider"]
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# typer.Option()/typer.Argument() as defaults is the idiomatic typer pattern
+"src/sidra_sql/cli.py" = ["B008"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/",
+    "tests/",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "CREATING_PIPELINES.md",
+]
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"

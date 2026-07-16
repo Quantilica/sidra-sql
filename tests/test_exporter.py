@@ -67,9 +67,7 @@ class TestCopySql(unittest.TestCase):
 
     def test_copy_query_strips_trailing_semicolon(self):
         sql = exporter.copy_query_sql("SELECT 1 ;  \n")
-        self.assertEqual(
-            sql, "COPY (SELECT 1) TO STDOUT WITH (FORMAT csv, HEADER)"
-        )
+        self.assertEqual(sql, "COPY (SELECT 1) TO STDOUT WITH (FORMAT csv, HEADER)")
 
     def test_copy_query_preserves_percent(self):
         # transform SQL uses LIKE '...%' — must survive verbatim (psycopg sends
@@ -90,8 +88,7 @@ class TestAsofViewSql(unittest.TestCase):
         sql = exporter.asof_view_sql("ibge_sidra", dt.date(2024, 3, 1))
         self.assertIn("modificacao <= DATE '2024-03-01'", sql)
         self.assertIn(
-            "DISTINCT ON"
-            " (tabela_sidra_id, localidade_id, dimensao_id, periodo_id)",
+            "DISTINCT ON (tabela_sidra_id, localidade_id, dimensao_id, periodo_id)",
             sql,
         )
         self.assertIn("modificacao DESC", sql)

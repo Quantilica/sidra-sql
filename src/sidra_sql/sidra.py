@@ -14,10 +14,10 @@ Public API
 
 import logging
 import threading
-import time
+from collections.abc import Callable, Generator
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Callable, Generator
+from typing import Any
 
 import httpx
 from sidra_fetcher.agregados import Agregado, Classificacao
@@ -302,7 +302,7 @@ class Fetcher:
                     _MAX_RETRIES,
                 )
                 if self._cancel.wait(delay):
-                    raise InterruptedError("cancelled")
+                    raise InterruptedError("cancelled") from None
 
     def __enter__(self):
         """Enter the context manager and return this `Fetcher`."""

@@ -4,7 +4,6 @@ from pathlib import Path
 
 from sidra_sql.validator import PluginValidator, Severity
 
-
 MANIFEST = """
 name = "test"
 version = "1.0.0"

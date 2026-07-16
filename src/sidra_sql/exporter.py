@@ -52,8 +52,7 @@ def _clean_query(sql: str) -> str:
 def copy_table_sql(schema: str, name: str) -> str:
     """COPY that dumps a materialized table/view to CSV on STDOUT."""
     return (
-        f'COPY (SELECT * FROM "{schema}"."{name}")'
-        " TO STDOUT WITH (FORMAT csv, HEADER)"
+        f'COPY (SELECT * FROM "{schema}"."{name}") TO STDOUT WITH (FORMAT csv, HEADER)'
     )
 
 
@@ -115,17 +114,13 @@ class Exporter:
         engine = database.get_engine(self.config)
         written: list[Path] = []
 
-        with engine.connect().execution_options(
-            isolation_level="AUTOCOMMIT"
-        ) as conn:
+        with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
             pg_conn = conn.connection.driver_connection
             cur = pg_conn.cursor()
 
             if asof is not None:
                 # pg_temp first so the temp view shadows the real `dados`.
-                cur.execute(
-                    f"SET search_path = pg_temp, {self.config.db_schema}"
-                )
+                cur.execute(f"SET search_path = pg_temp, {self.config.db_schema}")
                 cur.execute(asof_view_sql(self.config.db_schema, asof))
 
             for entry in outputs:

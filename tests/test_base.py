@@ -121,7 +121,9 @@ class TestTomlScript(unittest.TestCase):
         self.assertEqual(save_mock.call_count, 1)
 
     def test_get_tabelas_partial_unnest(self):
-        """unnest_classifications=[list] unnests only named IDs, merges static classifications."""
+        """unnest_classifications=[list] unnests only named IDs, merges
+        static classifications.
+        """
         tmp = Path(tempfile.mkdtemp())
         toml_path = tmp / "test.toml"
         toml_path.write_bytes(PARTIAL_UNNEST_TOML)
