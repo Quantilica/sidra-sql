@@ -3,9 +3,6 @@
 Public functions:
 - `get_engine`: create a SQLAlchemy engine from `Config`.
 - `save_agregado`: upsert SIDRA table metadata, periods, and localidades.
-- `build_localidade_lookup`: query localidade IDs by (nc, d1c) keys.
-- `build_dimensao_lookup`: query dimensao IDs by dimension key tuples.
-- `build_periodo_lookup`: query periodo IDs by (codigo, literals) keys.
 - `load_dados`: load data rows into the dados table (also upserts
   localidades and dimensions).
 """
@@ -89,17 +86,6 @@ def save_agregado(engine: sa.engine.Engine, agregado: Agregado):
         periodicidade=agregado.periodicidade.frequencia,
         metadados=json.loads(json.dumps(agregado.asdict(), default=str)),
     )
-    with engine.connect() as conn:
-        stmt = pg_insert(models.TabelaSidra.__table__).values(tabela_sidra)
-
-        stmt = stmt.on_conflict_do_update(
-            index_elements=["id"],
-            set_={"metadados": stmt.excluded.metadados},
-        )
-        conn.execute(stmt)
-        conn.commit()
-
-    # Save periods
     periodos_iter = (
         dict(
             codigo=periodo.id,
@@ -115,7 +101,26 @@ def save_agregado(engine: sa.engine.Engine, agregado: Agregado):
         )
         for periodo in agregado.periodos
     )
-    with engine.connect() as conn:
+    localidades_iter = (
+        dict(
+            nc=str(localidade.nivel.id),
+            nn=localidade.nivel.nome,
+            d1c=str(localidade.id),
+            d1n=localidade.nome,
+        )
+        for localidade in agregado.localidades
+    )
+
+    # Tabela, períodos e localidades numa única transação — ou tudo entra, ou
+    # nada; sem estados parciais em caso de falha no meio.
+    with engine.begin() as conn:
+        stmt = pg_insert(models.TabelaSidra.__table__).values(tabela_sidra)
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["id"],
+            set_={"metadados": stmt.excluded.metadados},
+        )
+        conn.execute(stmt)
+
         while True:
             batch = list(itertools.islice(periodos_iter, _BATCH_SIZE))
             if not batch:
@@ -135,25 +140,13 @@ def save_agregado(engine: sa.engine.Engine, agregado: Agregado):
                 },
             )
             conn.execute(stmt)
-            conn.commit()
 
-    localidades_iter = (
-        dict(
-            nc=str(localidade.nivel.id),
-            nn=localidade.nivel.nome,
-            d1c=str(localidade.id),
-            d1n=localidade.nome,
-        )
-        for localidade in agregado.localidades
-    )
-    with engine.connect() as conn:
         while True:
             batch = list(itertools.islice(localidades_iter, _BATCH_SIZE))
             if not batch:
                 break
             stmt = pg_insert(models.Localidade.__table__).values(batch)
             conn.execute(stmt.on_conflict_do_nothing())
-            conn.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -187,14 +180,6 @@ def _localidade_lookup_query(
         for row in conn.execute(stmt):
             lookup[(row.nc, row.d1c)] = row.id
     return lookup
-
-
-def build_localidade_lookup(
-    engine: sa.Engine, keys: Iterable[tuple] | None = None
-) -> dict[tuple, int]:
-    """Return a mapping of (nc, d1c) -> localidade.id."""
-    with engine.connect() as conn:
-        return _localidade_lookup_query(conn, keys)
 
 
 def _dimensao_lookup_query(
@@ -254,14 +239,6 @@ def _dimensao_lookup_query(
     return lookup
 
 
-def build_dimensao_lookup(
-    engine: sa.Engine, keys: Iterable[tuple] | None = None
-) -> dict[tuple, int]:
-    """Return a mapping of (mc, d2c, d4c...d9c) -> dimensao.id."""
-    with engine.connect() as conn:
-        return _dimensao_lookup_query(conn, keys)
-
-
 def _periodo_lookup_query(
     conn: sa.Connection, keys: Iterable[tuple] | None = None
 ) -> dict[tuple, int]:
@@ -292,14 +269,6 @@ def _periodo_lookup_query(
             literals_tuple = tuple(row.literals) if row.literals else ()
             lookup[(row.codigo, literals_tuple)] = row.id
     return lookup
-
-
-def build_periodo_lookup(
-    engine: sa.Engine, keys: Iterable[tuple] | None = None
-) -> dict[tuple, int]:
-    """Return a mapping of (codigo, literals) -> periodo.id."""
-    with engine.connect() as conn:
-        return _periodo_lookup_query(conn, keys)
 
 
 # ---------------------------------------------------------------------------
@@ -524,6 +493,12 @@ def _stream_staging(
     missing_periodos).
     """
     missing_locs = missing_dims = missing_periodos = n_rows = 0
+    # Amostra das chaves que não resolveram, para tornar o debug possível
+    # (contar não basta — é preciso saber QUAIS chaves faltaram).
+    _SAMPLE = 5
+    sample_locs: list[tuple] = []
+    sample_dims: list[tuple] = []
+    sample_periodos: list[str | None] = []
 
     with raw_conn.cursor() as cur:
         cur.execute(_STAGING_DDL)
@@ -534,19 +509,28 @@ def _stream_staging(
                     if row.get("V") is None:
                         continue
 
-                    loc_id = loc_lookup.get(_loc_key(row))
+                    loc_key = _loc_key(row)
+                    loc_id = loc_lookup.get(loc_key)
                     if loc_id is None:
                         missing_locs += 1
+                        if len(sample_locs) < _SAMPLE:
+                            sample_locs.append(loc_key)
                         continue
 
-                    dim_id = dim_lookup.get(_dim_key(row))
+                    dim_key = _dim_key(row)
+                    dim_id = dim_lookup.get(dim_key)
                     if dim_id is None:
                         missing_dims += 1
+                        if len(sample_dims) < _SAMPLE:
+                            sample_dims.append(dim_key)
                         continue
 
-                    periodo_id = periodo_by_codigo.get(_coerce(row.get("D3C")))
+                    periodo_codigo = _coerce(row.get("D3C"))
+                    periodo_id = periodo_by_codigo.get(periodo_codigo)
                     if periodo_id is None:
                         missing_periodos += 1
+                        if len(sample_periodos) < _SAMPLE:
+                            sample_periodos.append(periodo_codigo)
                         continue
 
                     copy.write_row(
@@ -572,6 +556,29 @@ def _stream_staging(
             n_deactivated += cur.rowcount
             cur.execute(_INSERT_GROUP, {"mod": mod})
             n_inserted += cur.rowcount
+
+    if missing_locs:
+        logger.warning(
+            "Table %s: %d rows with unknown localidade; sample keys (nc, d1c): %s",
+            tabela_sidra_id,
+            missing_locs,
+            sample_locs,
+        )
+    if missing_dims:
+        logger.warning(
+            "Table %s: %d rows with unknown dimensao; sample keys "
+            "(mc, d2c, d4c..d9c): %s",
+            tabela_sidra_id,
+            missing_dims,
+            sample_dims,
+        )
+    if missing_periodos:
+        logger.warning(
+            "Table %s: %d rows with unknown periodo; sample codigos: %s",
+            tabela_sidra_id,
+            missing_periodos,
+            sample_periodos,
+        )
 
     return (
         n_rows,

@@ -83,8 +83,10 @@ class TestStorage(unittest.TestCase):
 
             self.assertEqual(len(cleaned), 3)
             self.assertEqual(cleaned[0]["V"], 1)
+            # A coluna de valor "..." é normalizada para None...
             self.assertIsNone(cleaned[2]["V"])
-            self.assertIsNone(cleaned[2]["Other"])
+            # ...mas colunas não-V são preservadas ("-" continua "-").
+            self.assertEqual(cleaned[2]["Other"], "-")
 
     def test_get_metadata_filepath_returns_correct_path(self):
         with tempfile.TemporaryDirectory() as td:

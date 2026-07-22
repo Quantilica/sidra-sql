@@ -117,10 +117,12 @@ class Storage:
 
         if len(data) > 1:
             rows = data[1:]
+            # Só a coluna de valor (V) carrega os sentinelas de "sem dado" do
+            # SIDRA; aplicar a normalização a todas as colunas corromperia um
+            # nome de dimensão/localidade que legitimamente seja "-".
             for row in rows:
-                for k, v in row.items():
-                    if v in ("...", "-"):
-                        row[k] = None
+                if row.get("V") in ("...", "-"):
+                    row["V"] = None
             return rows
         return []
 
@@ -137,20 +139,3 @@ class Storage:
         filepath = self.get_metadata_filepath(agregado)
         agregado = load_agregado(filepath)
         return agregado
-
-    def read_data_dir(self, dirpath: Path) -> list[dict]:
-        # Group files by base name (before the @modification suffix) and keep
-        # only the file with the latest modification per parameter combination.
-        latest: dict[str, tuple[Path, str]] = {}
-        for f in dirpath.glob("*.json"):
-            stem = f.stem
-            if "@" in stem:
-                base, mod = stem.rsplit("@", 1)
-            else:
-                base, mod = stem, ""
-            if base not in latest or mod > latest[base][1]:
-                latest[base] = (f, mod)
-        data = []
-        for f, _ in latest.values():
-            data.extend(self.read_data(f))
-        return data

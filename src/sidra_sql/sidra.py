@@ -52,7 +52,8 @@ class Fetcher:
     Usage example::
 
         with Fetcher() as f:
-            files = f.download_table(...)
+            plan = [(None, p, m) for p, m in f.plan_periods(...)]
+            files = f.download_periods(plan)
 
     Attributes:
         sidra_client: An instance of `SidraClient` used to perform HTTP
@@ -187,39 +188,6 @@ class Fetcher:
         if errors:
             raise errors[0]
         return results
-
-    def download_table(
-        self,
-        tabela_sidra: str,
-        territories: dict[str, list[str]],
-        variables: list[str] | None = None,
-        classifications: dict[str, list[str]] | None = None,
-        on_file_done: Callable[[], None] | None = None,
-    ) -> list[dict[str, Any]]:
-        """Download all periods of a single SIDRA table and save them to disk.
-
-        Convenience wrapper around ``plan_periods`` + ``download_periods``
-        for callers that only need to fetch one table at a time. To
-        parallelize across many tables, build a combined plan via
-        ``plan_periods`` and submit it through ``download_periods``.
-
-        Returns:
-            A list of dicts with keys "filepath" (Path) and "modificacao" (str).
-        """
-        plan = [
-            (None, parameter, modification)
-            for parameter, modification in self.plan_periods(
-                tabela_sidra=tabela_sidra,
-                territories=territories,
-                variables=variables,
-                classifications=classifications,
-            )
-        ]
-        results = self.download_periods(plan, on_file_done=on_file_done)
-        return [
-            {"filepath": r["filepath"], "modificacao": r["modificacao"]}
-            for r in results
-        ]
 
     def fetch_metadata(self, tabela_sidra: str) -> Agregado:
         """Fetch full metadata for a SIDRA table including localidades and periodos."""
