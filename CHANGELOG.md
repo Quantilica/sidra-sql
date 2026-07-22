@@ -21,7 +21,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
   dos diretórios antigos (`~/.config/sidra-sql`, `~/.local/share/sidra-sql`).
 - `git clone`/`git pull` de plugins agora têm `timeout` (300 s / 120 s).
 
-### Melhorado
+### Alterado
 
 - `_stream_staging` loga uma amostra das chaves (localidade/dimensão/período) que
   não resolveram, tornando o debug de linhas puladas possível.
