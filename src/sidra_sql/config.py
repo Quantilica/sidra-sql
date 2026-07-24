@@ -95,7 +95,7 @@ class Config:
     def __str__(self):
         return (
             f"db_user: {self.db_user}\n"
-            f"db_password: {self.db_password}\n"
+            f"db_password: {'***' if self.db_password else ''}\n"
             f"db_host: {self.db_host}\n"
             f"db_port: {self.db_port}\n"
             f"db_name: {self.db_name}\n"

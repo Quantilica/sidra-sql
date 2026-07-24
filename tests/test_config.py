@@ -37,6 +37,9 @@ schema = public
 
             s = str(cfg)
             self.assertIn("db_user: alice", s)
+            # A senha nunca deve aparecer em texto puro em str(cfg).
+            self.assertNotIn("secret", s)
+            self.assertIn("db_password: ***", s)
         finally:
             os.chdir(cwd)
 

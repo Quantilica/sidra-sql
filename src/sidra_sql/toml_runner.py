@@ -5,7 +5,7 @@ and drives the full ETL pipeline: metadata → download → database load.
 
 TOML schema
 -----------
-Each ``[[tabelas]]`` entry maps directly to a `sidra.Fetcher.download_table`
+Each ``[[tabelas]]`` entry maps directly to a `sidra.Fetcher.plan_periods`
 call.  Two optional boolean flags extend the static format:
 
 ``unnest_classifications = true``
@@ -197,6 +197,20 @@ class TomlScript:
 
         return result
 
+    def _build_plan(
+        self, tabelas: Iterable[dict[str, Any]]
+    ) -> list[tuple[dict[str, Any], Any, str]]:
+        """Build the flat (tabela, parameter, modification) download plan.
+
+        Single source of truth shared by ``download`` and ``_run`` so the two
+        paths never drift.
+        """
+        plan: list[tuple[dict[str, Any], Any, str]] = []
+        for tabela in tabelas:
+            for parameter, modification in self.fetcher.plan_periods(**tabela):
+                plan.append((tabela, parameter, modification))
+        return plan
+
     def download(self, tabelas: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
         """Download all tables and return a list of data-file descriptors.
 
@@ -204,11 +218,7 @@ class TomlScript:
         through a single ``ThreadPoolExecutor`` so downloads parallelize
         across table boundaries, not just across periods of one table.
         """
-        plan: list[tuple[dict[str, Any], Any, str]] = []
-        for tabela in tabelas:
-            for parameter, modification in self.fetcher.plan_periods(**tabela):
-                plan.append((tabela, parameter, modification))
-        results = self.fetcher.download_periods(plan)
+        results = self.fetcher.download_periods(self._build_plan(tabelas))
         return [
             r["key"] | {"filepath": r["filepath"], "modificacao": r["modificacao"]}
             for r in results
@@ -269,10 +279,7 @@ class TomlScript:
                     description=f"Metadados ({n_meta} {s_meta})",
                 )
 
-            plan: list[tuple[dict[str, Any], Any, str]] = []
-            for tabela in tabelas:
-                for parameter, modification in self.fetcher.plan_periods(**tabela):
-                    plan.append((tabela, parameter, modification))
+            plan = self._build_plan(tabelas)
 
             n_plan = len(plan)
             if self.console is not None:

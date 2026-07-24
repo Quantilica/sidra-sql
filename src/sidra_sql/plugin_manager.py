@@ -32,16 +32,52 @@ class PluginManifest:
 
 class PluginRegistry:
     def __init__(self):
-        self.config_dir = Path(platformdirs.user_config_dir(APP_NAME, appauthor=False))
-        self.data_dir = Path(platformdirs.user_data_dir(APP_NAME, appauthor=False))
+        # Namespace `quantilica`, consistente com `config.py` (config global em
+        # ~/.config/quantilica/sidra-sql/). Antes vivia em ~/.config/sidra-sql/
+        # e ~/.local/share/sidra-sql/ — ver `_migrate_legacy`.
+        self.config_dir = (
+            Path(platformdirs.user_config_dir("quantilica", appauthor=False))
+            / APP_NAME
+        )
+        self.data_dir = (
+            Path(platformdirs.user_data_dir("quantilica", appauthor=False)) / APP_NAME
+        )
         self.plugins_dir = self.data_dir / "plugins"
         self.registry_file = self.config_dir / "registry.json"
+
+        self._migrate_legacy()
 
         self.config_dir.mkdir(parents=True, exist_ok=True)
         self.plugins_dir.mkdir(parents=True, exist_ok=True)
 
         if not self.registry_file.exists():
             self._save_registry({})
+
+    def _migrate_legacy(self) -> None:
+        """Migra registry.json e plugins/ dos diretórios antigos (namespace
+        `sidra-sql`) para o namespace `quantilica`. No-op após migrado.
+        """
+        old_registry = (
+            Path(platformdirs.user_config_dir(APP_NAME, appauthor=False))
+            / "registry.json"
+        )
+        old_plugins = (
+            Path(platformdirs.user_data_dir(APP_NAME, appauthor=False)) / "plugins"
+        )
+        if not self.registry_file.exists() and old_registry.exists():
+            self.config_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(old_registry, self.registry_file)
+            logger.info(
+                "Registro de plugins migrado de %s para %s",
+                old_registry,
+                self.registry_file,
+            )
+        if not self.plugins_dir.exists() and old_plugins.exists():
+            self.data_dir.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(old_plugins), str(self.plugins_dir))
+            logger.info(
+                "Plugins migrados de %s para %s", old_plugins, self.plugins_dir
+            )
 
     def _load_registry(self) -> dict:
         with open(self.registry_file, encoding="utf-8") as f:
@@ -95,7 +131,9 @@ class PluginManager:
             raise ValueError(f"Plugin with alias '{alias}' is already installed.")
 
         logger.info("Cloning %s into %s", url, plugin_path)
-        subprocess.run(["git", "clone", url, str(plugin_path)], check=True)
+        subprocess.run(
+            ["git", "clone", url, str(plugin_path)], check=True, timeout=300
+        )
         self.registry.register_plugin(alias, url)
         logger.info("Plugin '%s' installed successfully.", alias)
 
@@ -115,7 +153,9 @@ class PluginManager:
                 continue
 
             logger.info("Updating plugin '%s'", target)
-            subprocess.run(["git", "pull"], cwd=plugin_path, check=True)
+            subprocess.run(
+                ["git", "pull"], cwd=plugin_path, check=True, timeout=120
+            )
 
     def remove(self, alias: str):
         plugin_path = self.registry.get_plugin_path(alias)
