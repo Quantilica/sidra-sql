@@ -36,8 +36,7 @@ class PluginRegistry:
         # ~/.config/quantilica/sidra-sql/). Antes vivia em ~/.config/sidra-sql/
         # e ~/.local/share/sidra-sql/ — ver `_migrate_legacy`.
         self.config_dir = (
-            Path(platformdirs.user_config_dir("quantilica", appauthor=False))
-            / APP_NAME
+            Path(platformdirs.user_config_dir("quantilica", appauthor=False)) / APP_NAME
         )
         self.data_dir = (
             Path(platformdirs.user_data_dir("quantilica", appauthor=False)) / APP_NAME
@@ -75,9 +74,7 @@ class PluginRegistry:
         if not self.plugins_dir.exists() and old_plugins.exists():
             self.data_dir.mkdir(parents=True, exist_ok=True)
             shutil.move(str(old_plugins), str(self.plugins_dir))
-            logger.info(
-                "Plugins migrados de %s para %s", old_plugins, self.plugins_dir
-            )
+            logger.info("Plugins migrados de %s para %s", old_plugins, self.plugins_dir)
 
     def _load_registry(self) -> dict:
         with open(self.registry_file, encoding="utf-8") as f:
@@ -131,9 +128,7 @@ class PluginManager:
             raise ValueError(f"Plugin with alias '{alias}' is already installed.")
 
         logger.info("Cloning %s into %s", url, plugin_path)
-        subprocess.run(
-            ["git", "clone", url, str(plugin_path)], check=True, timeout=300
-        )
+        subprocess.run(["git", "clone", url, str(plugin_path)], check=True, timeout=300)
         self.registry.register_plugin(alias, url)
         logger.info("Plugin '%s' installed successfully.", alias)
 
@@ -153,9 +148,7 @@ class PluginManager:
                 continue
 
             logger.info("Updating plugin '%s'", target)
-            subprocess.run(
-                ["git", "pull"], cwd=plugin_path, check=True, timeout=120
-            )
+            subprocess.run(["git", "pull"], cwd=plugin_path, check=True, timeout=120)
 
     def remove(self, alias: str):
         plugin_path = self.registry.get_plugin_path(alias)
