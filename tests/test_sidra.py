@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-import httpx
+import httpx2
 
 from sidra_sql.sidra import Fetcher, unnest_classificacoes
 
@@ -66,7 +66,7 @@ class TestSidra(unittest.TestCase):
             def get(self_inner, url):
                 calls["n"] += 1
                 if calls["n"] == 1:
-                    raise httpx.ReadTimeout("timeout")
+                    raise httpx2.ReadTimeout("timeout")
                 return [{"col": 1}, {"col": 2}]
 
         fetcher.sidra_client = FakeClient()
@@ -94,7 +94,7 @@ class TestSidra(unittest.TestCase):
 
         class AlwaysTimesOut:
             def get(self_inner, url):
-                raise httpx.ReadTimeout("timeout")
+                raise httpx2.ReadTimeout("timeout")
 
         fetcher.sidra_client = AlwaysTimesOut()
 
@@ -103,7 +103,7 @@ class TestSidra(unittest.TestCase):
                 return "http://example"
 
         fetcher._cancel.wait = lambda delay: False
-        with self.assertRaises(httpx.ReadTimeout):
+        with self.assertRaises(httpx2.ReadTimeout):
             fetcher.get_table(P())
 
     def test_get_table_retries_on_connect_error(self):
@@ -115,7 +115,7 @@ class TestSidra(unittest.TestCase):
             def get(self_inner, url):
                 calls["n"] += 1
                 if calls["n"] == 1:
-                    raise httpx.ConnectError("refused")
+                    raise httpx2.ConnectError("refused")
                 return [{"col": 1}]
 
         fetcher.sidra_client = FakeClient()

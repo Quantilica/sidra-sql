@@ -19,7 +19,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
-import httpx
+import httpx2
 from sidra_fetcher.agregados import Agregado, Classificacao
 from sidra_fetcher.fetcher import SidraClient
 from sidra_fetcher.sidra import Formato, Parametro, Precisao
@@ -34,11 +34,11 @@ _RETRY_BASE_DELAY = 5  # seconds; doubles on each attempt (5, 10, 20, 40, 80)
 
 # Transient network conditions that warrant a retry
 _TRANSIENT_ERRORS = (
-    httpx.ReadTimeout,
-    httpx.ConnectTimeout,
-    httpx.ConnectError,
-    httpx.RemoteProtocolError,
-    httpx.NetworkError,
+    httpx2.ReadTimeout,
+    httpx2.ConnectTimeout,
+    httpx2.ConnectError,
+    httpx2.RemoteProtocolError,
+    httpx2.NetworkError,
 )
 
 
