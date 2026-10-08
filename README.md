@@ -185,14 +185,14 @@ Para criar suas próprias pipelines e distribuí-las como plugin, consulte o **[
 ## Instalação
 
 ```bash
-pip install sidra-sql
+# Via CLI unificada (recomendado)
+quantilica install sidra-sql
+
+# Ou como biblioteca no seu projeto
+uv add sidra-sql --index https://index.quantilica.com/simple/
 ```
 
-Com [uv](https://github.com/astral-sh/uv):
-
-```bash
-uv add sidra-sql
-```
+> **Nota:** Versões anteriores a 2.0.1 permanecem no PyPI, congeladas; a partir de 2.0.1 a distribuição é feita exclusivamente pelo índice Quantilica.
 
 **Dependências principais:**
 

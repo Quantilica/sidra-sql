@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [Não lançado]
+
+### Alterado
+
+- Instalação documentada via índice Quantilica (Fluxo B): `quantilica install sidra-sql` / `uv add sidra-sql --index https://index.quantilica.com/simple/`; versões anteriores a 2.0.1 no PyPI permanecem congeladas.
+
 ## [2.0.1] - 2026-10-08
 
 ### Alterado
