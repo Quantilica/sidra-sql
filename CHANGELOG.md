@@ -5,11 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
-## [Não lançado]
+## [2.0.1] - 2026-10-08
 
 ### Alterado
 
 - Piso de `sidra-fetcher` elevado para `>=0.10.5` (primeira versão publicada no Fluxo B).
+- Canal de distribuição migrado do PyPI para GitHub Releases + índice `index.quantilica.com` (Fluxo B); `pip install` direto do PyPI deixa de receber novas versões.
 
 ## [2.0.0] - 2026-08-30
 
